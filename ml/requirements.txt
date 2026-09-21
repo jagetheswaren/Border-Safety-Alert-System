@@ -1,0 +1,8 @@
+# ML training pipeline (Phase 9-11). Pinned loosely for student environments.
+# Install: pip install -r ml/requirements.txt
+numpy>=1.26
+pandas>=2.0
+scikit-learn>=1.3
+tensorflow>=2.15
+matplotlib>=3.8
+pytest>=8.0

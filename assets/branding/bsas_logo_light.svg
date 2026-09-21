@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 120" width="400" height="120">
+  <defs>
+    <linearGradient id="shieldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0EA5E9" />
+      <stop offset="100%" stop-color="#2563EB" />
+    </linearGradient>
+    <linearGradient id="coreGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#10B981" />
+      <stop offset="100%" stop-color="#059669" />
+    </linearGradient>
+  </defs>
+  <!-- Shield Contour -->
+  <path d="M60 15 L95 28 L95 62 C95 85 78 102 60 108 C42 102 25 85 25 62 L25 28 Z" 
+        fill="url(#shieldGrad)" />
+  <!-- Inner Radar Rings -->
+  <path d="M60 30 L85 40 L85 62 C85 78 72 90 60 95 C48 90 35 78 35 62 L35 40 Z" 
+        fill="#F1F5F9" />
+  <circle cx="60" cy="62" r="18" fill="none" stroke="#38BDF8" stroke-width="2" stroke-dasharray="3 3" />
+  <circle cx="60" cy="62" r="10" fill="none" stroke="#38BDF8" stroke-width="2" />
+  <!-- GPS Core Node -->
+  <circle cx="60" cy="62" r="5" fill="url(#coreGrad)" />
+  <!-- Compass Cardinal Ticks -->
+  <line x1="60" y1="46" x2="60" y2="40" stroke="#38BDF8" stroke-width="2.5" stroke-linecap="round" />
+  <line x1="60" y1="78" x2="60" y2="84" stroke="#38BDF8" stroke-width="2.5" stroke-linecap="round" />
+  <line x1="44" y1="62" x2="38" y2="62" stroke="#38BDF8" stroke-width="2.5" stroke-linecap="round" />
+  <line x1="76" y1="62" x2="82" y2="62" stroke="#38BDF8" stroke-width="2.5" stroke-linecap="round" />
+  <!-- Typography -->
+  <text x="120" y="55" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="34" font-weight="900" fill="#F1F5F9" letter-spacing="3">BSAS</text>
+  <text x="122" y="78" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="13" font-weight="700" fill="#38BDF8" letter-spacing="1.5">BORDER SAFETY</text>
+  <text x="122" y="96" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="500" fill="#94A3B8" letter-spacing="2.5">ALERT SYSTEM</text>
+</svg>
