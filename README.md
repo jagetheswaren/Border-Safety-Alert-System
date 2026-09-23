@@ -1,99 +1,316 @@
-# AI-Based Universal Border Safety & Alert System Using Offline Geo-Fencing and Artificial Intelligence
+# Border Safety Alert System (BSAS)
 
-> Offline-first Flutter Android safety prototype. Phases 1–6 provide foreground GPS, a local restricted-area polygon database, deterministic geo-fencing, and visual/voice/vibration/notification alerts. LSTM prediction, Random Forest classification, TensorFlow Lite, A* routing, and an offline LLM are planned later and are not implemented.
+[![BSAS Continuous Integration](https://github.com/jagetheswaren/Border-Safety-Alert-System/actions/workflows/ci.yml/badge.svg)](https://github.com/jagetheswaren/Border-Safety-Alert-System/actions)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Flutter](https://img.shields.io/badge/Flutter-3.44.4-02569B?logo=flutter)](https://flutter.dev)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-009688?logo=fastapi)](https://fastapi.tiangolo.com)
+[![Next.js](https://img.shields.io/badge/Next.js-16.3-black?logo=next.js)](https://nextjs.org)
 
-**IMPORTANT SCOPE (do not misrepresent in viva/docs):**
-- The app does NOT know every world border. It only knows restricted areas present in the **locally stored boundary database** (`boundary-data/` → SQLite on device).
-- The implemented safety pipeline is GPS → Geo-Fence → Alerts and works without a network connection after the bundled boundary data has been seeded locally. It is deterministic; it does not yet include ML, routing, or an offline LLM.
-- SOS / emergency transmission requires an available communication channel. The app stores last-known location + emergency info locally; it cannot send SMS/data without signal.
-- `boundary-data/sample/` polygons are **synthetic demo zones for development only**, NOT authoritative legal borders.
+An offline-first, location-aware civilian safety platform combining **GPS/GNSS acquisition**, **deterministic geofencing**, **on-device machine learning (LSTM & Random Forest)**, **multimodal alerts**, a **FastAPI backend**, a **Next.js operations dashboard**, and an **advisory local AI assistant**.
 
-## Implemented architecture (Phases 1–6)
+---
+
+## 1. Project Overview
+
+### What is BSAS?
+**Border Safety Alert System (BSAS)** is a civilian-first situational awareness application. It evaluates a user's real-time position against configured safety zones and restricted boundaries, predicts trajectory risks using on-device machine learning, and dispatches immediate sensory alerts—operating reliably even without active cellular or internet connectivity.
+
+> **Location Acquisition → Geofence Evaluation → Trajectory ML Inference → Risk Engine → Multimodal Alert**
+
+### Core Problems Solved
+1. **Spatial Uncertainty**: Civilians travelling near restricted zones often lack precise situational awareness regarding how close they are to restricted boundaries.
+2. **Connectivity Vulnerability**: Conventional cloud-based safety systems fail when internet connectivity drops in remote or border regions. BSAS operates offline using local boundary databases and on-device machine learning.
+3. **Delayed Warning**: BSAS coordinates Android notifications, auditory alarms, haptic vibration, and Text-to-Speech (TTS) immediately when risk thresholds are exceeded.
+
+---
+
+## 2. Complete System Architecture
 
 ```text
-GPS → GpsService → LocationModel → GeoFenceService → GeoFenceResult
-                                         │
-                         SQLite BoundaryRepository
-                                         │
-                 visual UI / AlertService → voice, vibration, notification
+                               ┌─────────────────────────┐
+                               │         USER            │
+                               │   Android Smartphone    │
+                               └────────────┬────────────┘
+                                            │
+                                            ▼
+                          ┌───────────────────────────────────┐
+                          │        FLUTTER MOBILE APP         │
+                          │   Home / Safety / Map / Alerts    │
+                          │        Route / AI / Settings      │
+                          └─────────────────┬─────────────────┘
+                                            │
+                 ┌──────────────────────────┼──────────────────────────┐
+                 │                          │                          │
+                 ▼                          ▼                          ▼
+          ┌─────────────┐            ┌──────────────┐           ┌──────────────┐
+          │  GPS / GNSS │            │ Offline Map  │           │ Local SQLite │
+          │ Coordinates │            │ Tile Storage │           │ Event Store  │
+          └──────┬──────┘            └──────────────┘           └──────┬───────┘
+                 │                                                     │
+                 ▼                                                     │
+          ┌─────────────┐                                              │
+          │  Geofence   │                                              │
+          │   Engine    │                                              │
+          └──────┬──────┘                                              │
+                 │                                                     │
+                 ▼                                                     │
+          ┌─────────────┐                                              │
+          │   Feature   │                                              │
+          │ Extraction  │                                              │
+          └──────┬──────┘                                              │
+                 │                                                     │
+                 ▼                                                     │
+          ┌─────────────┐                                              │
+          │ Z-Score     │                                              │
+          │ Scaler      │                                              │
+          └──────┬──────┘                                              │
+                 │                                                     │
+          ┌──────┴──────┐                                              │
+          ▼             ▼                                              │
+     ┌─────────┐   ┌─────────────┐                                     │
+     │  LSTM   │   │Random Forest│                                     │
+     │ TFLite  │   │ Model (JSON)│                                     │
+     └────┬────┘   └──────┬──────┘                                     │
+          │               │                                            │
+          └───────┬───────┘                                            │
+                  ▼                                                    │
+            ┌─────────────┐                                            │
+            │ Risk Engine │◄───────────────────────────────────────────┘
+            └──────┬──────┘
+                   │
+                   ▼
+            ┌─────────────┐
+            │Alert Service│
+            └──────┬──────┘
+                   │
+       ┌───────────┼───────────┐
+       ▼           ▼           ▼
+  Notification   Sound     Vibration
+                   │
+                   ▼
+              Text-to-Speech
+                   │
+                   ▼
+                 USER
+
+
+            SERVER & OPERATIONS PIPELINE (HTTPS / REST)
+            ───────────────────────────────────────────
+
+                          Flutter Mobile App
+                                  │
+                                  │ HTTPS / REST API
+                                  ▼
+                          ┌───────────────┐
+                          │    FastAPI    │
+                          │    Backend    │
+                          └───────┬───────┘
+                                  │
+                   ┌──────────────┼──────────────┐
+                   ▼              ▼              ▼
+               Auth API       Events API     Alerts API
+                   │              │              │
+                   └──────────────┼──────────────┘
+                                  ▼
+                          ┌───────────────┐
+                          │   Database    │
+                          │   (SQLite)    │
+                          └───────┬───────┘
+                                  │
+                                  ▼
+                          ┌───────────────┐
+                          │    Next.js    │
+                          │ Web Dashboard │
+                          └───────────────┘
 ```
 
-The broader ML, routing, and offline-assistant architecture remains a future plan in `docs/architecture.md` and `docs/ai_pipeline.md`.
+---
 
-## Repository layout
+## 3. Technology Stack
+
+| Domain | Technology | Purpose |
+| :--- | :--- | :--- |
+| **Mobile App** | **Flutter & Dart** | Cross-platform UI, native hardware bindings |
+| **Operating System** | **Android** (SDK 34) | Target mobile deployment platform |
+| **Location** | **Geolocator** (GPS/GNSS) | Continuous latitude, longitude, accuracy, speed, bearing |
+| **Local Database** | **SQLite (`sqflite`)** | Offline boundary storage, local audit event store |
+| **Mapping** | **`flutter_map`** | Offline map visualization & cached raster tiles |
+| **Neural Network** | **TensorFlow Lite (`tflite_flutter`)** | On-device sequential trajectory prediction (`phase7-lstm-v1.tflite`) |
+| **Classifier** | **Random Forest (JSON)** | Multi-tree risk category majority voting (`phase7-rf-v1.json`) |
+| **Alert Engine** | **Android Notifications, Audio, Vibration, TTS** | Multichannel emergency user notification |
+| **Backend REST API** | **FastAPI & Python 3.11** | Server API, auth, event aggregation, operational data |
+| **Database ORM** | **SQLAlchemy** | Relational database mapping with SQLite / PostgreSQL |
+| **Authentication** | **OAuth2 & JWT (`python-jose`, `passlib`, `bcrypt`)** | Secure token authorization & password hashing |
+| **Web Dashboard** | **Next.js 16, TypeScript, Tailwind CSS** | Operations portal, Leaflet live map, incidents monitoring |
+| **Local AI (Advisory)** | **Qwen3-0.6B GGUF** | Offline conversational field safety assistant |
+
+---
+
+## 4. Machine Learning & Risk Pipeline
+
+The application features on-device machine learning with zero server dependency for safety decisions:
 
 ```text
-.  (Flutter mobile app lives at repo root: lib/, android/, test/, pubspec.yaml)
-├── ml/               Python ML pipeline (datasets, preprocessing, training, evaluation, export, models)
-├── backend/          Optional FastAPI sync/update service (NOT required for core safety)
-├── boundary-data/    Sample/synthetic GeoJSON + SQLite boundary datasets (demo only)
-├── assets/           Flutter runtime assets (maps/, boundaries/, models/)
-├── docs/             Architecture, AI pipeline, dataset, geofencing, offline mode, installation
-├── scripts/          Helper scripts
-├── test/             Flutter widget/unit tests (flutter test)
-└── tests/            Repo-level test plans / integration scenarios
+Location History (5 timesteps)
+             ↓
+    Feature Extraction:
+    [lat, lon, speed, bearing, distance_to_boundary, bearing_diff]
+             ↓
+    Z-score Normalization (scaler_params.json)
+             ↓
+     ┌───────┴───────┐
+     ▼               ▼
+LSTM (TFLite)    Random Forest (JSON)
+Shape: [1,5,6]   Majority Voting
+Outputs: [Δlat, Δlon]  Outputs: Risk Class (0: Low, 1: Med, 2: High)
+     │               │
+     └───────┬───────┘
+             ▼
+        Risk Engine
+             ↓
+    Authoritative Decision (SAFE / CAUTION / WARNING / CRITICAL)
 ```
 
-NOTE: The master spec suggests `mobile/` for Flutter. To avoid breaking the existing
-Flutter/Gradle project created at the repo root, the Flutter app stays at the root in V1.
-Treat repo root as `mobile/`.
+### Verified Model Artifacts
+- **LSTM TFLite**: `assets/models/phase7-lstm-v1.tflite` (38,992 bytes, SHA-256: `84A147F1D7F19248DE41DAE23FB07094D4AB5DE4FC5FB2DE951914133E8DE51E`)
+- **Random Forest**: `assets/models/phase7-rf-v1.json` (5,148 bytes, SHA-256: `33FE1BC987A58C2B61CEE0A17A07D85B9D4232157D02B2E4A863822946EAA0BE`)
+- **Scaler Parameters**: `assets/models/scaler_params.json` (362 bytes, SHA-256: `044FED0634B134739402E9DB2DA768BB0CCDC83ADB12C033F65FC099B69C5A16`)
 
-## Technology stack (Phases 1–6)
+---
 
-- Flutter + Dart, Android SDK, `geolocator`, `sqflite`, `shared_preferences`,
-  `flutter_tts`, `flutter_local_notifications`, and `vibration`
-- Optional backend skeleton: FastAPI (see `backend/requirements.txt`); it is not required by the app.
-- `ml/` contains planning/dependency scaffolding only. It has no trained models or mobile inference integration.
+## 5. Local Conversational AI & Safety Isolation
 
-## Current status — Phase 6 complete
+BSAS integrates an on-device local assistant architecture using **Qwen3-0.6B Q4_0 GGUF**.
 
-- [x] Phase 1: repository foundation
-- [x] Phase 2: Flutter foundation (navigation, theme, 6 screens, widgets, APK)
-- [x] Phase 3: GPS service (geolocator, permissions, validated fixes, live UI)
-- [x] Phase 4: offline boundary database (sqflite, repository, GeoJSON import, seed, Home count)
-- [x] Phase 5: deterministic geo-fencing (point-in-polygon, nearest enabled boundary, distance/bearing, safety states)
-- [x] Phase 6: alert manager (visual, voice, vibration, notification, preferences, cooldown, escalation)
-- [ ] Phase 7: LSTM movement prediction — not started
+```text
+Safety Context Snapshot (GPS, Risk State, Alerts)
+                        │ [READ-ONLY]
+                        ▼
+               LocalChatService
+                        │
+                        ▼
+                  ModelManager
+                        │
+                        ▼
+                GGUF Runtime Engine
+                        │
+                        ▼
+               Qwen3-0.6B-Q4_0.gguf
+                        │
+                        ▼
+                Advisory Streamed Tokens
+```
 
-The app makes deterministic geo-fence safety decisions from validated foreground GPS fixes and enabled local boundaries. Demo polygons are synthetic and non-authoritative. ML, routing, and LLM features are not present; no model accuracy or safety prediction claims are made.
+### Architectural Safety Isolation Invariant
+- **Advisory Role Only**: The local AI operates strictly on a read-only snapshot of the safety context.
+- **Zero Mutability**: The AI assistant cannot modify GPS readings, disable alarms, change risk state, or alter boundary definitions.
+- **Deterministic Priority**: The deterministic geofence and ML risk engine remain the sole authority for safety-critical decisions.
 
-## Setup and verification
+---
 
-Requires: Flutter SDK, Dart SDK, Android Studio / Android SDK, Git, Python 3.10+.
+## 6. Repository Layout
 
+```text
+.
+├── android/                 Native Android application and Gradle configuration
+├── assets/
+│   ├── audio/               Warning sirens and notification chimes
+│   ├── boundaries/          Bundled demo GeoJSON safety polygons
+│   ├── branding/            Logos, app icons, and branding assets
+│   ├── maps/                Offline map metadata and local tile storage
+│   └── models/              Real on-device ML models (LSTM TFLite, RF JSON, Scaler)
+├── backend/                 FastAPI backend application
+│   ├── app/                 Routes (/auth, /users, /zones, /incidents, /alerts, /dashboard)
+│   ├── tests/               Pytest test suite
+│   └── requirements.txt     Backend Python dependencies
+├── docs/                    Comprehensive architecture & engineering documentation
+│   └── ARCHITECTURE.md      Detailed system architecture & sequence blueprints
+├── frontend/                Next.js web operations dashboard
+│   ├── src/app/             Dashboard routes (/dashboard, /incidents, /alerts, /map, /login)
+│   ├── package.json         Frontend dependencies (Next.js 16, React 19, Leaflet)
+│   └── tsconfig.json        TypeScript configuration
+├── lib/                     Flutter mobile application source code
+│   ├── core/                Design system, theme tokens, and shared UI widgets
+│   ├── database/            Local SQLite database (AppDatabase)
+│   ├── models/              Location, safety state, geofence, and alert data models
+│   ├── screens/             Mobile screens (Home, Map, Safety, Alerts, Route, AI, Settings)
+│   └── services/            GPS, Geofence, RiskEngine, ML, Alerts, LocalChat, Sync services
+├── test/                    Flutter unit and widget test suite (96 tests)
+└── .github/workflows/ci.yml GitHub Actions continuous integration pipeline
+```
+
+---
+
+## 7. Setup & Installation
+
+### Prerequisites
+- **Flutter SDK**: 3.44.4+
+- **Dart SDK**: 3.12.2+
+- **Android Studio / Android SDK**: Platform 34+
+- **Python**: 3.10+
+- **Node.js**: 20+
+
+### 1. Mobile Application (Flutter)
 ```powershell
-flutter --version
+# Fetch dependencies
 flutter pub get
-flutter analyze
+
+# Run static analysis
+flutter analyze lib/
+
+# Run complete test suite (96 tests)
 flutter test
 ```
 
-Python pipelines (structure only in Phase 1, no training yet):
-
+### 2. Backend API (FastAPI)
 ```powershell
-python -m venv .venv; .\.venv\Scripts\Activate.ps1
-pip install -r ml\requirements.txt
-pip install -r backend\requirements.txt
+# Navigate to backend directory or use virtual environment
+python -m venv venv
+.\venv\Scripts\Activate.ps1   # On Windows (or source venv/bin/activate on Unix)
+
+# Install dependencies
+pip install -r backend/requirements.txt
+
+# Run backend test suite
+pytest backend/tests -v
+
+# Start development API server
+uvicorn app.main:app --reload --port 8000
 ```
 
-## Offline behavior and future work
+### 3. Web Dashboard (Next.js)
+```bash
+cd frontend
+npm install
+npm run lint
+npm run build
+npm run dev
+```
 
-The bundled synthetic boundary data is seeded into SQLite and the deterministic GPS → geo-fence → alert pipeline does not require a network connection. Offline map tiles, download-region workflows, ML risk prediction, safe routing, and an offline LLM are future work.
+---
 
-## Documentation
+## 8. Android Production Release Build
 
-- `docs/architecture.md` — system data flow
-- `docs/ai_pipeline.md` — LSTM + Random Forest plan (no fake results)
-- `docs/dataset.md` — synthetic trajectory plan + schema
-- `docs/geofencing.md` — point-in-polygon / distance / states
-- `docs/offline_mode.md` — what works offline vs online
-- `docs/installation.md` — environment setup
-- `boundary-data/README.md` — demo data disclaimer
+To build the signed/release Android application package:
 
-## Current limitations
+```powershell
+flutter build apk --release
+```
 
-- GPS and alerts operate while the Flutter app is in the foreground; background tracking is not implemented.
-- Demo boundaries are synthetic and must not be used as authoritative geographic or legal data.
-- No `.tflite` models exist yet.
-- Backend is a stub; core app must never depend on it.
-- Phase 7 has not started.
+The release APK will be generated at:
+`build/app/outputs/flutter-apk/app-release.apk`
+
+---
+
+## 9. Security & Hardening
+
+- **Cryptographic Hashing**: Passwords stored using `bcrypt` via Passlib.
+- **JWT Authorization**: Authenticated API endpoints validate OAuth2 Bearer JSON Web Tokens.
+- **Production Fail-Safe**: Backend refuses to start in `production` mode if weak development secrets are detected.
+- **Data Privacy**: Location data remains local to the device during offline mode; sync occurs only through authenticated API endpoints over HTTPS.
+
+---
+
+## 10. License
+
+This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.

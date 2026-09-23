@@ -72,7 +72,13 @@ ml/evaluation/reports/*.png
 *.sqlite-journal
 boundary-data/sqlite/*.db
 assets/models/*.tflite
+!assets/models/phase7-lstm-v1.tflite
 !assets/models/.gitkeep
+
+# Ephemeral platform packages
+ios/Flutter/ephemeral/
+macos/Flutter/ephemeral/
+windows/flutter/ephemeral/
 
 # Scratch / temporary
 scratch/
