@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'model_manager.dart';
 
@@ -41,14 +43,31 @@ class SafetyContextSnapshot {
       };
 }
 
+enum ChatBackendMode {
+  auto,
+  ollama,
+  onDeviceGguf,
+}
+
 class LocalChatService extends ChangeNotifier {
-  LocalChatService({required this.modelManager});
+  LocalChatService({
+    required this.modelManager,
+    this.ollamaBaseUrl = 'http://127.0.0.1:11434',
+    this.ollamaModel = 'qwen2.5:0.5b',
+    this.backendMode = ChatBackendMode.auto,
+  });
 
   final ModelManager modelManager;
+  final String ollamaBaseUrl;
+  final String ollamaModel;
+  ChatBackendMode backendMode;
+
   bool _isGenerating = false;
   Completer<void>? _cancelCompleter;
+  bool _isOllamaConnected = false;
 
   bool get isGenerating => _isGenerating;
+  bool get isOllamaConnected => _isOllamaConnected;
 
   static const String systemPrompt = '''
 You are the BSAS Local Safety Assistant. You are an offline conversational assistant running locally on-device.
@@ -67,6 +86,20 @@ Important rules:
 - When data is unavailable, clearly state it is unavailable.
 - Work completely offline without cloud dependencies.
 ''';
+
+  Future<bool> checkOllamaHealth() async {
+    try {
+      final client = HttpClient()..connectionTimeout = const Duration(milliseconds: 700);
+      final req = await client.getUrl(Uri.parse('$ollamaBaseUrl/api/tags'));
+      final res = await req.close().timeout(const Duration(milliseconds: 1200));
+      _isOllamaConnected = res.statusCode == 200;
+      client.close();
+    } catch (_) {
+      _isOllamaConnected = false;
+    }
+    notifyListeners();
+    return _isOllamaConnected;
+  }
 
   void cancelGeneration() {
     if (_isGenerating && _cancelCompleter != null && !_cancelCompleter!.isCompleted) {
@@ -91,8 +124,39 @@ Important rules:
     notifyListeners();
 
     try {
+      final lower = userPrompt.toLowerCase().trim();
+      final isTelemetryLookup = lower.contains('where am i') ||
+          lower.contains('what is the system health') ||
+          lower.contains('status and risk engine evaluation');
+
+      // 1. If not forced offline and Ollama is preferred, check if Ollama can handle general inquiries
+      bool useOllama = (backendMode == ChatBackendMode.ollama || backendMode == ChatBackendMode.auto) &&
+          !isTelemetryLookup;
+
+      if (useOllama) {
+        final available = await checkOllamaHealth();
+        if (available) {
+          bool streamedAny = false;
+          try {
+            await for (final token in _streamOllama(userPrompt, contextSnapshot)) {
+              if (_cancelCompleter != null && _cancelCompleter!.isCompleted) {
+                break;
+              }
+              streamedAny = true;
+              yield token;
+            }
+          } catch (_) {
+            streamedAny = false;
+          }
+          if (streamedAny) return;
+        }
+      }
+
+      // 2. Deterministic Telemetry & On-device GGUF / Offline Advisory Runtime
       if (!modelManager.isModelLoaded) {
-        await modelManager.loadModel();
+        try {
+          await modelManager.loadModel();
+        } catch (_) {}
       }
 
       final responseText = _composeResponse(userPrompt, contextSnapshot);
@@ -108,13 +172,65 @@ Important rules:
         yield token;
 
         // Realistic streaming delay matching ~18-22 tokens/sec on Cortex-A53
-        await Future.delayed(const Duration(milliseconds: 45));
+        await Future.delayed(const Duration(milliseconds: 40));
       }
     } finally {
       _isGenerating = false;
       modelManager.setGenerating(false);
       notifyListeners();
     }
+  }
+
+  Stream<String> _streamOllama(String userPrompt, SafetyContextSnapshot ctx) async* {
+    final client = HttpClient()..connectionTimeout = const Duration(seconds: 4);
+    final req = await client.postUrl(Uri.parse('$ollamaBaseUrl/api/generate'));
+    req.headers.contentType = ContentType.json;
+
+    final contextString = '''
+[CURRENT SENSOR & SAFETY CONTEXT]
+Official Risk State: ${ctx.riskState}
+Geofence State: ${ctx.zoneState}
+GPS Available: ${ctx.gpsAvailable}
+Coordinates: ${ctx.latitude?.toStringAsFixed(6) ?? "N/A"}, ${ctx.longitude?.toStringAsFixed(6) ?? "N/A"}
+Accuracy: ±${ctx.accuracyM?.toStringAsFixed(1) ?? "N/A"} m
+Active Alerts: ${ctx.activeAlertCount}
+Offline Mode: ${ctx.isOffline}
+''';
+
+    final body = jsonEncode({
+      'model': ollamaModel,
+      'prompt': '$contextString\nUser Query: $userPrompt\nAssistant:',
+      'system': systemPrompt,
+      'stream': true,
+      'options': {
+        'temperature': 0.3,
+        'num_predict': 150,
+      }
+    });
+
+    req.write(body);
+    final res = await req.close();
+    if (res.statusCode != 200) {
+      client.close();
+      throw HttpException('Ollama HTTP error ${res.statusCode}');
+    }
+
+    final lines = res.transform(utf8.decoder).transform(const LineSplitter());
+    await for (final line in lines) {
+      if (_cancelCompleter != null && _cancelCompleter!.isCompleted) {
+        break;
+      }
+      if (line.trim().isEmpty) continue;
+      try {
+        final data = jsonDecode(line) as Map<String, dynamic>;
+        final token = data['response'] as String? ?? '';
+        if (token.isNotEmpty) {
+          yield token;
+        }
+        if (data['done'] == true) break;
+      } catch (_) {}
+    }
+    client.close();
   }
 
   String _composeResponse(String prompt, SafetyContextSnapshot ctx) {

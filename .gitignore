@@ -83,3 +83,4 @@ windows/flutter/ephemeral/
 # Scratch / temporary
 scratch/
 .pytest_cache/
+offline_tiles/

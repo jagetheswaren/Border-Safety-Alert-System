@@ -3,8 +3,8 @@ import 'package:flutter/material.dart';
 import '../core/animations/bsas_animations.dart';
 import '../core/theme/bsas_colors.dart';
 import '../core/theme/bsas_typography.dart';
+import '../core/widgets/bsas_logo.dart';
 import '../core/widgets/status_badge.dart';
-import '../core/widgets/status_dot.dart';
 import '../data/demo_data.dart';
 import '../models/gps_snapshot.dart';
 import '../models/geofence_result.dart';
@@ -57,8 +57,8 @@ class HomeScreen extends StatelessWidget {
         backgroundColor: BsasColors.darkSurface,
         title: Row(
           children: [
-            const StatusDot(state: StatusState.ready, size: 8),
-            const SizedBox(width: 8),
+            const BsasLogo(size: 26, animated: false),
+            const SizedBox(width: 10),
             Text('BSAS FIELD SAFETY', style: BsasTypography.headline.copyWith(letterSpacing: 1.2)),
           ],
         ),

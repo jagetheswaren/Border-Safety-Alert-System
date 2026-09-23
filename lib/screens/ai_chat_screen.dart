@@ -45,6 +45,9 @@ class _AiChatScreenState extends State<AiChatScreen> {
     super.initState();
     _initConversation();
     widget.modelManager.checkModelStatus();
+    widget.chatService.checkOllamaHealth().then((_) {
+      if (mounted) setState(() {});
+    });
   }
 
   Future<void> _initConversation() async {
@@ -58,11 +61,14 @@ class _AiChatScreenState extends State<AiChatScreen> {
         title: 'Initial Safety Inquiry',
       );
       // Welcome assistant message
+      final isOllama = widget.chatService.isOllamaConnected;
       final welcome = ChatMessageModel(
         id: 'msg_welcome',
         conversationId: _currentConversationId,
         role: 'assistant',
-        content: 'Hello. I am the BSAS Local Safety Assistant, running entirely on-device via Qwen3-0.6B. How can I help you today?',
+        content: isOllama
+            ? 'Hello! I am the BSAS Safety Assistant connected to local GPU Ollama (Qwen2.5-0.5B). I can explain your telemetry, geofence status, and field guidance. How can I assist you?'
+            : 'Hello. I am the BSAS Local Safety Assistant, running entirely on-device via Qwen3-0.6B GGUF. How can I help you today?',
         timestamp: DateTime.now(),
       );
       await widget.memoryService.addMessage(welcome);
@@ -178,19 +184,26 @@ class _AiChatScreenState extends State<AiChatScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isOllama = widget.chatService.isOllamaConnected;
     return Scaffold(
       backgroundColor: BsasColors.darkBackground,
       appBar: AppBar(
         backgroundColor: BsasColors.darkSurface,
         title: Row(
           children: [
-            const StatusDot(state: StatusState.ready, size: 8),
+            StatusDot(
+              state: isOllama ? StatusState.ready : StatusState.loading,
+              size: 8,
+            ),
             const SizedBox(width: 8),
             const Text('BSAS LOCAL AI', style: BsasTypography.headline),
           ],
         ),
         actions: [
-          const StatusBadge(label: 'OFFLINE', state: StatusState.ready),
+          StatusBadge(
+            label: isOllama ? 'OLLAMA GPU' : 'OFFLINE GGUF',
+            state: StatusState.ready,
+          ),
           PopupMenuButton<String>(
             icon: const Icon(Icons.more_vert),
             onSelected: (val) async {

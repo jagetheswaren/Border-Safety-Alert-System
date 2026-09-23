@@ -189,7 +189,7 @@ class ModelManager extends ChangeNotifier {
       if (!simulateFromLocalPack) {
         // Search for real GGUF model in known candidate locations
         final candidates = <String>[
-          if (customSourcePath != null) customSourcePath,
+          ?customSourcePath,
           'models/qwen/$modelFilename',
           'assets/models/qwen/$modelFilename',
           '${Directory.current.path}/models/qwen/$modelFilename',

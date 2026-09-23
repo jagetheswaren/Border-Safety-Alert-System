@@ -116,5 +116,12 @@ void main() {
       expect(fullText, contains('System Health'));
       expect(fullText, contains('Offline'));
     });
+
+    test('OLLAMA: detects running local Ollama server health and model', () async {
+      final isOnline = await chatService.checkOllamaHealth();
+      // Since Ollama is running on this laptop host, verify detection
+      expect(isOnline, isTrue);
+      expect(chatService.isOllamaConnected, isTrue);
+    });
   });
 }

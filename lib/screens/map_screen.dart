@@ -268,13 +268,37 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
             child: SizedBox(key: Key('map-placeholder')),
           ),
 
-          // 3. Floating Control Bar (Recenter, Follow, Tracking)
+          // 3. Floating Control Bar (Zoom In/Out, Recenter, Follow, Tracking)
           Positioned(
             bottom: 20,
             right: 16,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                // Zoom in
+                FloatingActionButton.small(
+                  heroTag: 'btn-zoom-in',
+                  backgroundColor: BsasColors.darkSurface,
+                  onPressed: () {
+                    final nextZoom = (_mapController.camera.zoom + 1.0).clamp(6.0, 18.0);
+                    _mapController.move(_mapController.camera.center, nextZoom);
+                  },
+                  child: const Icon(Icons.add, color: Colors.white),
+                ),
+                const SizedBox(height: 8),
+
+                // Zoom out
+                FloatingActionButton.small(
+                  heroTag: 'btn-zoom-out',
+                  backgroundColor: BsasColors.darkSurface,
+                  onPressed: () {
+                    final nextZoom = (_mapController.camera.zoom - 1.0).clamp(6.0, 18.0);
+                    _mapController.move(_mapController.camera.center, nextZoom);
+                  },
+                  child: const Icon(Icons.remove, color: Colors.white),
+                ),
+                const SizedBox(height: 8),
+
                 // Tracking toggle
                 ListenableBuilder(
                   listenable: _tracking,
