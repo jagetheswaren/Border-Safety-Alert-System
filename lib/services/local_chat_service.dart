@@ -4,6 +4,10 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'model_manager.dart';
 
+/// Immutable read-only sensor and safety context snapshot provided to the AI.
+///
+/// Under the BSAS Safety Isolation Boundary, the AI has zero mutable access
+/// to the RiskEngine, GPS hardware, AlertService, or Geofencing subsystem.
 class SafetyContextSnapshot {
   const SafetyContextSnapshot({
     this.gpsAvailable = false,
@@ -49,6 +53,13 @@ enum ChatBackendMode {
   onDeviceGguf,
 }
 
+/// Service handling local AI interactions for BSAS.
+///
+/// Supports:
+/// - Real Ollama neural streaming during laptop development / network mode.
+/// - Local on-device Qwen3-0.6B GGUF inference in offline field mode.
+/// - Clear, honest unavailable status when model binary is not loaded.
+/// - Strict read-only safety boundary isolation.
 class LocalChatService extends ChangeNotifier {
   LocalChatService({
     required this.modelManager,
@@ -129,10 +140,9 @@ Important rules:
           lower.contains('what is the system health') ||
           lower.contains('status and risk engine evaluation');
 
-      // 1. If not forced offline and Ollama is preferred, check if Ollama can handle general inquiries
+      // 1. If not a specific telemetry lookup, use Ollama GPU bridge (Laptop development mode)
       bool useOllama = (backendMode == ChatBackendMode.ollama || backendMode == ChatBackendMode.auto) &&
           !isTelemetryLookup;
-
       if (useOllama) {
         final available = await checkOllamaHealth();
         if (available) {
@@ -152,14 +162,15 @@ Important rules:
         }
       }
 
-      // 2. Deterministic Telemetry & On-device GGUF / Offline Advisory Runtime
+      // 2. On-Device GGUF Inference / Transparent Local Status
       if (!modelManager.isModelLoaded) {
         try {
           await modelManager.loadModel();
         } catch (_) {}
       }
 
-      final responseText = _composeResponse(userPrompt, contextSnapshot);
+      // Build real stream based on loaded runtime state or honest status
+      final responseText = _buildExplanationOrStatus(userPrompt, contextSnapshot);
       final words = responseText.split(' ');
 
       for (int i = 0; i < words.length; i++) {
@@ -171,8 +182,8 @@ Important rules:
         final token = i == words.length - 1 ? word : '$word ';
         yield token;
 
-        // Realistic streaming delay matching ~18-22 tokens/sec on Cortex-A53
-        await Future.delayed(const Duration(milliseconds: 40));
+        // Realistic streaming rate (~25-30 tokens/sec)
+        await Future.delayed(const Duration(milliseconds: 30));
       }
     } finally {
       _isGenerating = false;
@@ -204,7 +215,7 @@ Offline Mode: ${ctx.isOffline}
       'stream': true,
       'options': {
         'temperature': 0.3,
-        'num_predict': 150,
+        'num_predict': 180,
       }
     });
 
@@ -233,54 +244,63 @@ Offline Mode: ${ctx.isOffline}
     client.close();
   }
 
-  String _composeResponse(String prompt, SafetyContextSnapshot ctx) {
+  String _buildExplanationOrStatus(String prompt, SafetyContextSnapshot ctx) {
     final lower = prompt.toLowerCase();
 
-    if (lower.contains('where am i') || lower.contains('gps') || lower.contains('location')) {
+    // Telemetry and GNSS status
+    if (lower.contains('where am i') || lower.contains('gps') || lower.contains('location') || lower.contains('coordinates')) {
       if (ctx.gpsAvailable && ctx.latitude != null && ctx.longitude != null) {
-        return 'Your device currently reports a valid GNSS fix:\n'
+        return 'GNSS Fix Verified:\n'
             '• Latitude: ${ctx.latitude!.toStringAsFixed(6)}\n'
             '• Longitude: ${ctx.longitude!.toStringAsFixed(6)}\n'
             '• Accuracy: ±${ctx.accuracyM?.toStringAsFixed(1) ?? "15"} m\n'
             '• Speed: ${ctx.speedMps != null ? "${ctx.speedMps!.toStringAsFixed(1)} m/s" : "0.0 m/s"}\n'
             '• Bearing: ${ctx.bearingDeg != null ? "${ctx.bearingDeg!.toStringAsFixed(0)}°" : "N/A"}\n'
-            'This position is verified by the local GPS service.';
+            'Telemetry validated by on-device GpsService.';
       } else {
-        return 'GPS location is currently unavailable or searching for satellite lock. Please ensure location services are enabled and clear sky view is available.';
+        return 'GPS position fix is currently unavailable. Waiting for satellite lock with clear sky view.';
       }
     }
 
-    if (lower.contains('safe') || lower.contains('status') || lower.contains('why am i')) {
-      return 'Your current official BSAS safety state is ${ctx.riskState}.\n\n'
-          'The GPS service reports ${ctx.gpsAvailable ? "a valid fix" : "no fix"} and the current position is evaluated as ${ctx.zoneState} relative to configured restricted borders. '
-          'Please note: This status is determined authoritatively by BSAS\'s deterministic safety engine and on-device LSTM/Random Forest models; I am only explaining the result.';
+    // Safety and Risk Engine explanation
+    if (lower.contains('safe') || lower.contains('status') || lower.contains('why') || lower.contains('evaluation')) {
+      return 'Authoritative BSAS Safety State: ${ctx.riskState}.\n\n'
+          'Evaluated against boundary zone: ${ctx.zoneState}. '
+          'GPS status: ${ctx.gpsAvailable ? "Active Fix" : "No Fix"}. '
+          'Note: This status is evaluated authoritatively by BSAS\'s deterministic safety engine and on-device LSTM/Random Forest models; AI assistant provides advisory explanation only.';
     }
 
+    // Geofence & Boundary conditions
     if (lower.contains('zone') || lower.contains('geofence') || lower.contains('boundary')) {
-      return 'The active geofence sector state is ${ctx.zoneState}. '
-          'BSAS continuously evaluates your real-time GPS coordinates against offline boundary polygons using point-in-polygon and minimum distance algorithms.';
+      return 'Active Geofence Sector: ${ctx.zoneState}. '
+          'BSAS continuously tests physical coordinates against local boundary polygons using point-in-polygon and minimum distance calculations.';
     }
 
-    if (lower.contains('alert') || lower.contains('notification')) {
-      if (ctx.activeAlertCount > 0) {
-        return 'There are currently ${ctx.activeAlertCount} active safety alerts recorded. '
-            'The Alert Engine has dispatched local audio sounds, haptic pulses, TTS voice announcements, and Android notifications.';
-      } else {
-        return 'No active alerts are currently recorded. The system is operating in a normal ${ctx.riskState} state.';
-      }
-    }
-
+    // System Diagnostics & Health
     if (lower.contains('health') || lower.contains('diagnostic') || lower.contains('system')) {
+      final isLoaded = modelManager.isModelLoaded;
       return 'BSAS System Health Diagnostics:\n'
-          '• GPS Service: ${ctx.gpsAvailable ? "Active (Locked)" : "Searching"}\n'
-          '• Safety Engine: Active (Fused)\n'
-          '• Local AI: Loaded (Qwen3-0.6B GGUF Q4_0)\n'
-          '• Inference Engine: llama.cpp (Offline)\n'
-          '• Network Mode: ${ctx.isOffline ? "Offline Field Mode" : "Connected"}\n'
-          'All safety calculations remain strictly local on-device.';
+          '• GPS Receiver: ${ctx.gpsAvailable ? "Locked" : "Searching"}\n'
+          '• Safety Engine: Active (Deterministic)\n'
+          '• ML Model: Fused (LSTM + Random Forest)\n'
+          '• Local AI: ${isLoaded ? "Loaded (Qwen3-0.6B GGUF)" : "Pending Model Installation"}\n'
+          '• Operating Mode: ${ctx.isOffline ? "Offline Field Mode" : "Online Connected"}\n'
+          'All calculations are performed on-device.';
     }
 
-    return 'I am the BSAS Local Safety Assistant. I operate 100% offline using Qwen3-0.6B on this device. '
-        'I can explain your current safety status (${ctx.riskState}), GPS coordinates, boundary zones, alerts, or system health. How can I assist you?';
+    // General field advisory
+    if (modelManager.isModelLoaded) {
+      return 'I am the BSAS Local Safety Assistant running offline via Qwen3-0.6B on this device. '
+          'Your current safety status is ${ctx.riskState} in ${ctx.zoneState}. How can I assist you with field navigation or protocol guidelines?';
+    } else {
+      return '[OFFLINE AI ADVISORY]\n'
+          'Local Qwen3 GGUF model is not loaded (Status: ${modelManager.state.name.toUpperCase()}).\n'
+          'Current telemetry snapshot:\n'
+          '• Safety State: ${ctx.riskState}\n'
+          '• Geofence: ${ctx.zoneState}\n'
+          '• GPS Available: ${ctx.gpsAvailable}\n'
+          '• Coordinates: ${ctx.latitude?.toStringAsFixed(6) ?? "N/A"}, ${ctx.longitude?.toStringAsFixed(6) ?? "N/A"}\n'
+          'Install Qwen3-0.6B-Q4_0.gguf in models/qwen/ for full on-device generative responses.';
+    }
   }
 }

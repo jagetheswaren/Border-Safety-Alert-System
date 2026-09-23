@@ -198,6 +198,22 @@ class ChatMemoryService extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> clearMessages(String conversationId) async {
+    _conversations[conversationId] = [];
+    final idx = _summaries.indexWhere((s) => s.id == conversationId);
+    if (idx != -1) {
+      final old = _summaries[idx];
+      _summaries[idx] = ConversationSummary(
+        id: old.id,
+        title: old.title,
+        updatedAt: DateTime.now(),
+        messageCount: 0,
+      );
+    }
+    await _persist();
+    notifyListeners();
+  }
+
   List<ChatMessageModel> searchMessages(String query) {
     final q = query.toLowerCase();
     final results = <ChatMessageModel>[];

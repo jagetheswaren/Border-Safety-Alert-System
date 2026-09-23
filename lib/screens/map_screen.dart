@@ -547,48 +547,33 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
                       ),
                     ),
                     const SizedBox(height: 8),
-                    RadioListTile<MapLayerType>(
-                      title: const Text('Standard (OpenStreetMap)', style: TextStyle(color: Colors.white)),
-                      subtitle: const Text('Vector-rendered road and topographical raster',
-                          style: TextStyle(color: Colors.white70, fontSize: 12)),
-                      value: MapLayerType.standard,
-                      groupValue: _currentLayer,
-                      activeColor: BsasColors.radarCyan,
-                      onChanged: (val) {
-                        if (val != null) {
-                          setState(() => _currentLayer = val);
-                          setSheetState(() {});
-                        }
+                    _layerOptionTile(
+                      title: 'Standard (OpenStreetMap)',
+                      subtitle: 'Vector road and topographical cartographic raster',
+                      isSelected: _currentLayer == MapLayerType.standard,
+                      onTap: () {
+                        setState(() => _currentLayer = MapLayerType.standard);
+                        setSheetState(() {});
                       },
                     ),
-                    RadioListTile<MapLayerType>(
-                      title: const Text('Satellite (Esri World Imagery)', style: TextStyle(color: Colors.white)),
-                      subtitle: const Text('High-resolution global optical satellite photography',
-                          style: TextStyle(color: Colors.white70, fontSize: 12)),
-                      value: MapLayerType.satellite,
-                      groupValue: _currentLayer,
-                      activeColor: BsasColors.radarCyan,
-                      onChanged: (val) {
-                        if (val != null) {
-                          setState(() => _currentLayer = val);
-                          setSheetState(() {});
-                        }
+                    const SizedBox(height: 6),
+                    _layerOptionTile(
+                      title: 'Satellite (Esri World Imagery)',
+                      subtitle: 'High-resolution optical satellite photography',
+                      isSelected: _currentLayer == MapLayerType.satellite,
+                      onTap: () {
+                        setState(() => _currentLayer = MapLayerType.satellite);
+                        setSheetState(() {});
                       },
                     ),
-                    RadioListTile<MapLayerType>(
-                      title: const Text('Offline Sector (0 Data / Local Cache)', style: TextStyle(color: Colors.white)),
-                      subtitle: Text(
-                        'Cached: ${_offlineMap.tileCount} tiles (${_offlineMap.storageMb.toStringAsFixed(1)} MB)',
-                        style: const TextStyle(color: BsasColors.safeGreen, fontSize: 12),
-                      ),
-                      value: MapLayerType.offline,
-                      groupValue: _currentLayer,
-                      activeColor: BsasColors.radarCyan,
-                      onChanged: (val) {
-                        if (val != null) {
-                          setState(() => _currentLayer = val);
-                          setSheetState(() {});
-                        }
+                    const SizedBox(height: 6),
+                    _layerOptionTile(
+                      title: 'Offline Sector (0 Data / Local Cache)',
+                      subtitle: 'Cached: ${_offlineMap.tileCount} tiles (${_offlineMap.storageMb.toStringAsFixed(1)} MB)',
+                      isSelected: _currentLayer == MapLayerType.offline,
+                      onTap: () {
+                        setState(() => _currentLayer = MapLayerType.offline);
+                        setSheetState(() {});
                       },
                     ),
                     const Divider(color: BsasColors.darkBorder),
@@ -736,4 +721,59 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
       },
     );
   }
+
+  Widget _layerOptionTile({
+    required String title,
+    required String subtitle,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: isSelected ? BsasColors.radarCyan.withValues(alpha: 0.15) : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isSelected ? BsasColors.radarCyan : BsasColors.darkBorder,
+            width: isSelected ? 1.5 : 1.0,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              isSelected ? Icons.check_circle_rounded : Icons.radio_button_unchecked,
+              color: isSelected ? BsasColors.radarCyan : Colors.white38,
+              size: 20,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      color: isSelected ? Colors.white : Colors.white70,
+                      fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(color: Colors.white60, fontSize: 11),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
+

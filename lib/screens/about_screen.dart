@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../core/theme/bsas_colors.dart';
+import '../core/theme/bsas_spacing.dart';
 import '../core/theme/bsas_typography.dart';
 import '../core/widgets/bsas_logo.dart';
 
@@ -9,127 +10,200 @@ class AboutScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
       key: const Key('screen-about'),
-      backgroundColor: BsasColors.darkBackground,
+      backgroundColor: BsasColors.background(isDark),
       appBar: AppBar(
-        backgroundColor: BsasColors.darkSurface,
-        title: const Text('About BSAS', style: BsasTypography.headline),
+        backgroundColor: BsasColors.surface(isDark),
+        title: Text(
+          'About BSAS',
+          style: BsasTypography.heading.copyWith(color: BsasColors.text(isDark)),
+        ),
       ),
       body: ListView(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.symmetric(
+          horizontal: BsasSpacing.lg,
+          vertical: BsasSpacing.xl,
+        ),
         children: [
-          const Center(
+          Center(
             child: Column(
               children: [
-                BsasLogo(size: 88, animated: false),
-                SizedBox(height: 16),
+                const BsasLogo(size: 80, animated: false),
+                const SizedBox(height: BsasSpacing.lg),
                 Text(
                   'BORDER SAFETY ALERT SYSTEM',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
+                  style: BsasTypography.sectionHeading.copyWith(
+                    color: BsasColors.text(isDark),
+                    fontSize: 15,
                     letterSpacing: 1.5,
                   ),
                 ),
-                SizedBox(height: 4),
-                Text(
-                  'Release v1.1.0 • Production Build',
-                  style: TextStyle(color: BsasColors.safeGreen, fontSize: 13, fontWeight: FontWeight.bold),
+                const SizedBox(height: BsasSpacing.xs),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: BsasSpacing.sm,
+                    vertical: BsasSpacing.xs,
+                  ),
+                  decoration: BoxDecoration(
+                    color: BsasColors.safeGreen.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: BsasColors.safeGreen.withValues(alpha: 0.4)),
+                  ),
+                  child: Text(
+                    'RELEASE v1.1.0 • PRODUCTION BUILD',
+                    style: BsasTypography.monospace.copyWith(
+                      color: BsasColors.safeGreen,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                 ),
-                SizedBox(height: 8),
+                const SizedBox(height: BsasSpacing.sm),
                 Text(
                   'Offline-First Civilian Border Safety & Perimeter Alert System',
-                  style: TextStyle(color: Colors.white70, fontSize: 13),
+                  style: BsasTypography.caption.copyWith(
+                    color: BsasColors.textSec(isDark),
+                  ),
                   textAlign: TextAlign.center,
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: BsasSpacing.xxl),
 
-          _header('SYSTEM ARCHITECTURE'),
-          Card(
-            color: BsasColors.darkSurface,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-              side: const BorderSide(color: BsasColors.darkBorder),
-            ),
-            child: const Column(
-              children: [
-                ListTile(
-                  leading: Icon(Icons.phone_android, color: BsasColors.radarCyan),
-                  title: Text('Mobile Core', style: TextStyle(color: Colors.white)),
-                  subtitle: Text('Flutter 3.12 / Dart / Android ARM64 release', style: TextStyle(color: Colors.white70)),
-                ),
-                Divider(height: 1, color: BsasColors.darkBorder),
-                ListTile(
-                  leading: Icon(Icons.memory, color: BsasColors.radarCyan),
-                  title: Text('On-Device ML Engine', style: TextStyle(color: Colors.white)),
-                  subtitle: Text('LSTM TFLite (1x5x6) + Random Forest + RobustScaler', style: TextStyle(color: Colors.white70)),
-                ),
-                Divider(height: 1, color: BsasColors.darkBorder),
-                ListTile(
-                  leading: Icon(Icons.psychology, color: BsasColors.radarCyan),
-                  title: Text('Local Generative AI', style: TextStyle(color: Colors.white)),
-                  subtitle: Text('Qwen3-0.6B-Q4_0 GGUF (llama.cpp) / Ollama GPU Bridge', style: TextStyle(color: Colors.white70)),
-                ),
-                Divider(height: 1, color: BsasColors.darkBorder),
-                ListTile(
-                  leading: Icon(Icons.map, color: BsasColors.radarCyan),
-                  title: Text('Mapping Subsystem', style: TextStyle(color: Colors.white)),
-                  subtitle: Text('Offline Raster Storage + Esri World Imagery Satellite', style: TextStyle(color: Colors.white70)),
-                ),
-                Divider(height: 1, color: BsasColors.darkBorder),
-                ListTile(
-                  leading: Icon(Icons.storage, color: BsasColors.radarCyan),
-                  title: Text('Local Persistence', style: TextStyle(color: Colors.white)),
-                  subtitle: Text('SQLite native database + encrypted JSON fallback', style: TextStyle(color: Colors.white70)),
-                ),
-              ],
-            ),
+          _sectionHeader('SYSTEM ARCHITECTURE', isDark),
+          _card(
+            isDark: isDark,
+            children: [
+              _tile(
+                isDark: isDark,
+                icon: Icons.phone_android_outlined,
+                iconColor: isDark ? BsasColors.radarCyan : BsasColors.primaryBlue,
+                title: 'Mobile Application Core',
+                subtitle: 'Flutter 3.12 / Dart / Android ARM64 native target',
+              ),
+              Divider(height: 1, color: BsasColors.border(isDark)),
+              _tile(
+                isDark: isDark,
+                icon: Icons.memory_outlined,
+                iconColor: isDark ? BsasColors.radarCyan : BsasColors.primaryBlue,
+                title: 'On-Device ML Engine',
+                subtitle: 'LSTM TFLite (1x5x6) + Random Forest + RobustScaler',
+              ),
+              Divider(height: 1, color: BsasColors.border(isDark)),
+              _tile(
+                isDark: isDark,
+                icon: Icons.psychology_outlined,
+                iconColor: isDark ? BsasColors.radarCyan : BsasColors.primaryBlue,
+                title: 'Local Generative AI',
+                subtitle: 'Qwen3-0.6B-Q4_0 GGUF (llama.cpp) / Ollama GPU Bridge',
+              ),
+              Divider(height: 1, color: BsasColors.border(isDark)),
+              _tile(
+                isDark: isDark,
+                icon: Icons.map_outlined,
+                iconColor: isDark ? BsasColors.radarCyan : BsasColors.primaryBlue,
+                title: 'Mapping Subsystem',
+                subtitle: 'Offline Raster Storage + Esri World Imagery Satellite',
+              ),
+              Divider(height: 1, color: BsasColors.border(isDark)),
+              _tile(
+                isDark: isDark,
+                icon: Icons.storage_outlined,
+                iconColor: isDark ? BsasColors.radarCyan : BsasColors.primaryBlue,
+                title: 'Local Persistence',
+                subtitle: 'SQLite native database + encrypted JSON fallback',
+              ),
+            ],
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: BsasSpacing.xl),
 
-          _header('PROJECT & REPOSITORY'),
-          Card(
-            color: BsasColors.darkSurface,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-              side: const BorderSide(color: BsasColors.darkBorder),
-            ),
-            child: const Column(
-              children: [
-                ListTile(
-                  leading: Icon(Icons.code, color: BsasColors.safeGreen),
-                  title: Text('GitHub Repository', style: TextStyle(color: Colors.white)),
-                  subtitle: Text('jagetheswaren/Border-Safety-Alert-System', style: TextStyle(color: Colors.white70)),
-                ),
-                Divider(height: 1, color: BsasColors.darkBorder),
-                ListTile(
-                  leading: Icon(Icons.balance, color: BsasColors.safeGreen),
-                  title: Text('Software License', style: TextStyle(color: Colors.white)),
-                  subtitle: Text('MIT License (BSAS Core) • Apache-2.0 (Qwen AI)', style: TextStyle(color: Colors.white70)),
-                ),
-              ],
-            ),
+          _sectionHeader('PROJECT & REPOSITORY', isDark),
+          _card(
+            isDark: isDark,
+            children: [
+              _tile(
+                isDark: isDark,
+                icon: Icons.code,
+                iconColor: BsasColors.safeGreen,
+                title: 'GitHub Repository',
+                subtitle: 'jagetheswaren/Border-Safety-Alert-System',
+              ),
+              Divider(height: 1, color: BsasColors.border(isDark)),
+              _tile(
+                isDark: isDark,
+                icon: Icons.balance_outlined,
+                iconColor: BsasColors.safeGreen,
+                title: 'Software Licensing',
+                subtitle: 'MIT License (BSAS Core) • Apache-2.0 (Qwen AI)',
+              ),
+            ],
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: BsasSpacing.xxxl),
         ],
       ),
     );
   }
 
-  Widget _header(String title) {
+  Widget _sectionHeader(String title, bool isDark) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8, left: 4),
+      padding: const EdgeInsets.only(bottom: BsasSpacing.sm, left: BsasSpacing.xs),
       child: Text(
         title,
+        style: BsasTypography.sectionHeading.copyWith(
+          color: isDark ? BsasColors.radarCyan : BsasColors.primaryBlue,
+        ),
+      ),
+    );
+  }
+
+  Widget _card({required bool isDark, required List<Widget> children}) {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(BsasSpacing.cardRadius),
+        border: Border.all(color: BsasColors.border(isDark)),
+      ),
+      child: Material(
+        color: BsasColors.card(isDark),
+        borderRadius: BorderRadius.circular(BsasSpacing.cardRadius),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          children: children,
+        ),
+      ),
+    );
+  }
+
+  Widget _tile({
+    required bool isDark,
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required String subtitle,
+  }) {
+    return ListTile(
+      leading: Container(
+        padding: const EdgeInsets.all(BsasSpacing.sm),
+        decoration: BoxDecoration(
+          color: iconColor.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(BsasSpacing.buttonRadius),
+        ),
+        child: Icon(icon, color: iconColor, size: 20),
+      ),
+      title: Text(
+        title,
+        style: BsasTypography.title.copyWith(
+          color: BsasColors.text(isDark),
+          fontSize: 15,
+        ),
+      ),
+      subtitle: Text(
+        subtitle,
         style: BsasTypography.caption.copyWith(
-          color: BsasColors.radarCyan,
-          fontWeight: FontWeight.bold,
-          letterSpacing: 1.1,
+          color: BsasColors.textSec(isDark),
         ),
       ),
     );

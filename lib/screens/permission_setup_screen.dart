@@ -3,7 +3,9 @@ import 'package:geolocator/geolocator.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import '../core/theme/bsas_colors.dart';
+import '../core/theme/bsas_spacing.dart';
 import '../core/theme/bsas_typography.dart';
+import '../core/widgets/status_badge.dart';
 
 class PermissionSetupScreen extends StatefulWidget {
   const PermissionSetupScreen({super.key});
@@ -29,11 +31,12 @@ class _PermissionSetupScreenState extends State<PermissionSetupScreen> {
     try {
       final locEnabled = await Geolocator.isLocationServiceEnabled();
       final locPerm = await Geolocator.checkPermission();
-      
+
       final fln = FlutterLocalNotificationsPlugin();
-      final notifPerm = await fln.resolvePlatformSpecificImplementation<
-              AndroidFlutterLocalNotificationsPlugin>()
-          ?.areNotificationsEnabled() ?? true;
+      final notifPerm = await fln
+              .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+              ?.areNotificationsEnabled() ??
+          true;
 
       if (mounted) {
         setState(() {
@@ -61,8 +64,8 @@ class _PermissionSetupScreenState extends State<PermissionSetupScreen> {
   Future<void> _requestNotifications() async {
     try {
       final fln = FlutterLocalNotificationsPlugin();
-      final androidImpl = fln.resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin>();
+      final androidImpl =
+          fln.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
       final granted = await androidImpl?.requestNotificationsPermission() ?? false;
       if (mounted) {
         setState(() => _notificationsGranted = granted);
@@ -73,196 +76,147 @@ class _PermissionSetupScreenState extends State<PermissionSetupScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     final hasLoc = _locationPermission == LocationPermission.always ||
         _locationPermission == LocationPermission.whileInUse;
 
     return Scaffold(
       key: const Key('screen-permissions'),
-      backgroundColor: BsasColors.darkBackground,
       appBar: AppBar(
-        backgroundColor: BsasColors.darkSurface,
-        title: const Text('System Permissions', style: BsasTypography.headline),
+        title: const Text('System Permissions', style: BsasTypography.heading),
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: BsasColors.radarCyan))
+          ? const Center(child: CircularProgressIndicator(color: BsasColors.primaryBlue))
           : ListView(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(BsasSpacing.screenMargin),
               children: [
-                const SizedBox(height: 8),
                 Text(
                   'MANDATORY HARDWARE ACCESS',
-                  style: BsasTypography.caption.copyWith(
-                    color: BsasColors.radarCyan,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 1.2,
+                  style: BsasTypography.sectionHeading.copyWith(
+                    color: BsasColors.primaryBlue,
+                    fontSize: 12,
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: BsasSpacing.sm),
                 Text(
-                  'BSAS operates offline and strictly processes all geospatial telemetry on your local device. '
-                  'The following permissions are required for life-safety alerting.',
-                  style: BsasTypography.body.copyWith(color: Colors.white70),
+                  'BSAS operates offline and relies directly on local Android hardware sensors. Granted permissions never communicate telemetry externally.',
+                  style: BsasTypography.body.copyWith(
+                    fontSize: 13,
+                    color: isDark ? BsasColors.textLightSecondary : BsasColors.textDarkSecondary,
+                  ),
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: BsasSpacing.lg),
 
-                // 1. Precise GNSS Location Card
-                Card(
-                  color: BsasColors.darkSurface,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    side: BorderSide(
-                      color: hasLoc ? BsasColors.safeGreen : BsasColors.warningOrange,
-                      width: 1.5,
-                    ),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(Icons.gps_fixed, color: hasLoc ? BsasColors.safeGreen : BsasColors.warningOrange),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                'Precise GPS / GNSS Location',
-                                style: BsasTypography.title.copyWith(fontSize: 16),
-                              ),
-                            ),
-                            _badge(
-                              hasLoc ? 'GRANTED' : (_locationPermission == LocationPermission.deniedForever ? 'DENIED' : 'REQUIRED'),
-                              hasLoc,
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 10),
-                        Text(
-                          'Required for continuous point-in-polygon border distance calculation and deterministic geofence evaluation.',
-                          style: BsasTypography.caption.copyWith(color: Colors.white70),
-                        ),
-                        if (!_locationServiceEnabled) ...[
-                          const SizedBox(height: 8),
-                          const Text(
-                            '⚠️ Hardware Location Services (GPS) are currently DISABLED on this device.',
-                            style: TextStyle(color: BsasColors.criticalRed, fontSize: 13, fontWeight: FontWeight.bold),
-                          ),
-                        ],
-                        const SizedBox(height: 12),
-                        Row(
-                          children: [
-                            if (!hasLoc)
-                              ElevatedButton(
-                                style: ElevatedButton.styleFrom(backgroundColor: BsasColors.radarCyan),
-                                onPressed: _requestLocation,
-                                child: const Text('GRANT ACCESS', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
-                              ),
-                            const SizedBox(width: 8),
-                            OutlinedButton(
-                              onPressed: () => Geolocator.openLocationSettings(),
-                              child: const Text('DEVICE GPS SETTINGS', style: TextStyle(color: Colors.white70, fontSize: 12)),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
+                // 1. Precise GNSS Location Permission
+                _permissionCard(
+                  context,
+                  title: 'Precise GNSS Geolocation',
+                  subtitle: 'Required for real-time distance calculations and boundary geofencing.',
+                  icon: Icons.location_on_outlined,
+                  isGranted: hasLoc,
+                  onRequest: _requestLocation,
+                  statusText: hasLoc ? 'GRANTED' : 'REQUIRED',
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: BsasSpacing.md),
 
-                // 2. Android System Notifications Card
-                Card(
-                  color: BsasColors.darkSurface,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    side: BorderSide(
-                      color: _notificationsGranted ? BsasColors.safeGreen : BsasColors.warningOrange,
-                      width: 1.5,
-                    ),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.notifications_active,
-                              color: _notificationsGranted ? BsasColors.safeGreen : BsasColors.warningOrange,
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                'Android Notification Channel',
-                                style: BsasTypography.title.copyWith(fontSize: 16),
-                              ),
-                            ),
-                            _badge(
-                              _notificationsGranted ? 'ACTIVE' : 'MUTED',
-                              _notificationsGranted,
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 10),
-                        Text(
-                          'Dispatches high-importance notifications with custom alert sounds and vibration patterns during boundary escalation.',
-                          style: BsasTypography.caption.copyWith(color: Colors.white70),
-                        ),
-                        const SizedBox(height: 12),
-                        if (!_notificationsGranted)
-                          ElevatedButton(
-                            style: ElevatedButton.styleFrom(backgroundColor: BsasColors.radarCyan),
-                            onPressed: _requestNotifications,
-                            child: const Text('ENABLE NOTIFICATIONS', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
-                          ),
-                      ],
-                    ),
-                  ),
+                // 2. Android Location Services Hardware Switch
+                _permissionCard(
+                  context,
+                  title: 'Device Location Services',
+                  subtitle: 'Physical GPS satellite receiver must be enabled in device settings.',
+                  icon: Icons.gps_fixed,
+                  isGranted: _locationServiceEnabled,
+                  onRequest: () async {
+                    await Geolocator.openLocationSettings();
+                    await _checkPermissions();
+                  },
+                  statusText: _locationServiceEnabled ? 'ACTIVE' : 'DISABLED',
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: BsasSpacing.md),
 
-                // System Settings Link
-                OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    side: const BorderSide(color: BsasColors.darkBorder),
-                  ),
-                  icon: const Icon(Icons.settings, color: BsasColors.radarCyan),
-                  label: const Text('OPEN ANDROID APP SETTINGS', style: TextStyle(color: Colors.white)),
-                  onPressed: () => Geolocator.openAppSettings(),
+                // 3. High-Priority System Notifications
+                _permissionCard(
+                  context,
+                  title: 'Emergency Notifications',
+                  subtitle: 'Dispatches boundary warnings and acoustic escalation notices.',
+                  icon: Icons.notifications_active_outlined,
+                  isGranted: _notificationsGranted,
+                  onRequest: _requestNotifications,
+                  statusText: _notificationsGranted ? 'ACTIVE' : 'OPTIONAL',
                 ),
-                const SizedBox(height: 16),
-                Center(
-                  child: TextButton.icon(
-                    icon: const Icon(Icons.refresh, color: BsasColors.radarCyan, size: 18),
-                    label: const Text('Re-check Status', style: TextStyle(color: BsasColors.radarCyan)),
-                    onPressed: _checkPermissions,
-                  ),
+                const SizedBox(height: BsasSpacing.xxl),
+
+                ElevatedButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('CONFIRM CONFIGURATION'),
                 ),
               ],
             ),
     );
   }
 
-  Widget _badge(String label, bool ok) {
+  Widget _permissionCard(
+    BuildContext context, {
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required bool isGranted,
+    required VoidCallback onRequest,
+    required String statusText,
+  }) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: BsasSpacing.cardInsets,
       decoration: BoxDecoration(
-        color: ok ? BsasColors.safeGreen.withValues(alpha: 0.2) : BsasColors.warningOrange.withValues(alpha: 0.2),
-        borderRadius: BorderRadius.circular(6),
+        color: isDark ? BsasColors.darkCard : BsasColors.lightCard,
+        borderRadius: BorderRadius.circular(BsasSpacing.cardRadius),
         border: Border.all(
-          color: ok ? BsasColors.safeGreen : BsasColors.warningOrange,
-          width: 1,
+          color: isGranted ? BsasColors.safeGreen : (isDark ? BsasColors.darkBorder : BsasColors.lightBorder),
+          width: isGranted ? 1.2 : 1.0,
         ),
       ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: ok ? BsasColors.safeGreen : BsasColors.warningOrange,
-          fontSize: 11,
-          fontWeight: FontWeight.bold,
-        ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 22, color: isGranted ? BsasColors.safeGreen : BsasColors.primaryBlue),
+              const SizedBox(width: BsasSpacing.sm),
+              Expanded(
+                child: Text(
+                  title,
+                  style: BsasTypography.title.copyWith(fontSize: 14),
+                ),
+              ),
+              StatusBadge(
+                label: statusText,
+                color: isGranted ? BsasColors.safeGreen : BsasColors.warningOrange,
+              ),
+            ],
+          ),
+          const SizedBox(height: BsasSpacing.xs),
+          Text(
+            subtitle,
+            style: BsasTypography.body.copyWith(
+              fontSize: 12,
+              color: isDark ? BsasColors.textLightSecondary : BsasColors.textDarkSecondary,
+            ),
+          ),
+          if (!isGranted) ...[
+            const SizedBox(height: BsasSpacing.md),
+            Align(
+              alignment: Alignment.centerRight,
+              child: OutlinedButton(
+                onPressed: onRequest,
+                child: const Text('GRANT ACCESS'),
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }

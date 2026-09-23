@@ -11,6 +11,8 @@ class AlertMessage {
   final AlertSeverity severity;
   final String title;
   final String message;
+
+  String get body => message;
 }
 
 AlertMessage? alertMessageForState(GeoFenceState state) {

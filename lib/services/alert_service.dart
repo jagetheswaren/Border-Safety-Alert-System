@@ -22,6 +22,9 @@ class AlertDeliveryStatus {
   final bool vibrationPlayed;
   final bool ttsPlayed;
   final bool notificationPosted;
+
+  bool get voiceSpoken => ttsPlayed;
+  bool get vibrated => vibrationPlayed;
 }
 
 class AlertEvent {
