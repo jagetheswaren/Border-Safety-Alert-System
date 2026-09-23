@@ -5,11 +5,23 @@ import '../core/theme/bsas_typography.dart';
 import '../core/widgets/status_badge.dart';
 import '../models/alert_severity.dart';
 import '../services/alert_service.dart';
+import '../services/local_event_store.dart';
+import 'alert_details_screen.dart';
+import 'history_screen.dart';
 
 class AlertsScreen extends StatelessWidget {
-  const AlertsScreen({super.key, required this.alertService});
+  const AlertsScreen({
+    super.key,
+    required this.alertService,
+    this.eventStore,
+    this.onViewOnMap,
+    this.onSafeRoute,
+  });
 
   final AlertService alertService;
+  final LocalEventStore? eventStore;
+  final VoidCallback? onViewOnMap;
+  final VoidCallback? onSafeRoute;
 
   @override
   Widget build(BuildContext context) {
@@ -22,6 +34,17 @@ class AlertsScreen extends StatelessWidget {
         backgroundColor: BsasColors.darkSurface,
         title: const Text('Alert History & Timeline', style: BsasTypography.headline),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.receipt_long, color: BsasColors.radarCyan),
+            tooltip: 'View SQLite Event Logs',
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => HistoryScreen(eventStore: eventStore),
+                ),
+              );
+            },
+          ),
           StatusBadge(
             label: '${history.length} RECORDED',
             state: history.isEmpty ? StatusState.ready : StatusState.warning,
@@ -64,8 +87,21 @@ class AlertsScreen extends StatelessWidget {
                       width: 1.5,
                     ),
                   ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(12),
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => AlertDetailsScreen(
+                            event: event,
+                            onViewOnMap: onViewOnMap,
+                            onSafeRoute: onSafeRoute,
+                          ),
+                        ),
+                      );
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -112,8 +148,9 @@ class AlertsScreen extends StatelessWidget {
                       ],
                     ),
                   ),
-                );
-              },
+                ),
+              );
+            },
             ),
     );
   }

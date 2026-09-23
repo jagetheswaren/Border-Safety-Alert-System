@@ -14,6 +14,12 @@ import '../services/offline_tile_provider.dart';
 import '../widgets/gps_status_chip.dart';
 import '../widgets/geofence_status_card.dart';
 
+enum MapLayerType {
+  standard,
+  satellite,
+  offline,
+}
+
 class MapScreen extends StatefulWidget {
   const MapScreen({
     super.key,
@@ -40,6 +46,10 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
   late final OfflineMapService _offlineMap;
   bool _followUser = true;
   bool _showDetails = false;
+  MapLayerType _currentLayer = MapLayerType.standard;
+  bool _showSafetyZones = true;
+  bool _showTrail = true;
+  bool _showAccuracyRing = true;
 
   @override
   void initState() {
@@ -111,61 +121,76 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
               },
             ),
             children: [
-              // TileLayer: local tiles first, transparent network fallback
-              TileLayer(
-                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                userAgentPackageName: 'org.bsas.bordersafety',
-                tileProvider: OfflineTileProvider(
-                  mapService: _offlineMap,
-                  allowNetworkFallback: true,
+              // 1. Dynamic Map Base Tile Layer
+              if (_currentLayer == MapLayerType.satellite)
+                TileLayer(
+                  key: const ValueKey('tile-satellite'),
+                  urlTemplate:
+                      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+                  userAgentPackageName: 'org.bsas.bordersafety',
+                  maxZoom: 18.0,
+                )
+              else if (_currentLayer == MapLayerType.offline)
+                TileLayer(
+                  key: const ValueKey('tile-offline'),
+                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                  userAgentPackageName: 'org.bsas.bordersafety',
+                  tileProvider: OfflineTileProvider(
+                    mapService: _offlineMap,
+                    allowNetworkFallback: false,
+                  ),
+                )
+              else
+                TileLayer(
+                  key: const ValueKey('tile-standard'),
+                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                  userAgentPackageName: 'org.bsas.bordersafety',
+                  tileProvider: OfflineTileProvider(
+                    mapService: _offlineMap,
+                    allowNetworkFallback: true,
+                  ),
                 ),
-                tileBuilder: (context, tileWidget, tile) {
-                  return Container(
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Colors.black12, width: 0.2),
-                    ),
-                    child: tileWidget,
-                  );
-                },
-              ),
 
               // Bounded Location Trail Layer
-              ListenableBuilder(
-                listenable: _tracking,
-                builder: (context, _) {
-                  final trailPoints = _tracking.trail
-                      .map((p) => LatLng(p.latitude, p.longitude))
-                      .toList();
-                  if (trailPoints.length < 2) return const SizedBox.shrink();
+              if (_showTrail)
+                ListenableBuilder(
+                  listenable: _tracking,
+                  builder: (context, _) {
+                    final trailPoints = _tracking.trail
+                        .map((p) => LatLng(p.latitude, p.longitude))
+                        .toList();
+                    if (trailPoints.length < 2) return const SizedBox.shrink();
 
-                  return PolylineLayer(
-                    polylines: [
-                      Polyline(
-                        points: trailPoints,
-                        strokeWidth: 4.0,
-                        color: BsasColors.radarCyan,
-                      ),
-                    ],
-                  );
-                },
-              ),
+                    return PolylineLayer(
+                      polylines: [
+                        Polyline(
+                          points: trailPoints,
+                          strokeWidth: 4.0,
+                          color: BsasColors.radarCyan,
+                        ),
+                      ],
+                    );
+                  },
+                ),
 
               // Accuracy Circle Layer
-              CircleLayer(
-                circles: [
-                  CircleMarker(
-                    point: pos,
-                    radius: accuracy.clamp(10.0, 100.0),
-                    useRadiusInMeter: true,
-                    color: BsasColors.radarCyan.withValues(alpha: 0.15),
-                    borderColor: BsasColors.radarCyan.withValues(alpha: 0.6),
-                    borderStrokeWidth: 1.5,
-                  ),
-                ],
-              ),
+              if (_showAccuracyRing)
+                CircleLayer(
+                  circles: [
+                    CircleMarker(
+                      point: pos,
+                      radius: accuracy.clamp(10.0, 100.0),
+                      useRadiusInMeter: true,
+                      color: BsasColors.radarCyan.withValues(alpha: 0.15),
+                      borderColor: BsasColors.radarCyan.withValues(alpha: 0.6),
+                      borderStrokeWidth: 1.5,
+                    ),
+                  ],
+                ),
 
               // Geofence Zone Polygons
-              if (widget.geoFence.nearestBoundary != null &&
+              if (_showSafetyZones &&
+                  widget.geoFence.nearestBoundary != null &&
                   widget.geoFence.nearestBoundary!.polygon.isNotEmpty)
                 PolygonLayer(
                   polygons: widget.geoFence.nearestBoundary!.polygon.map((ring) {
@@ -339,6 +364,15 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
                 ),
                 const SizedBox(height: 8),
 
+                // Layer selection button
+                FloatingActionButton.small(
+                  heroTag: 'btn-layers',
+                  backgroundColor: BsasColors.darkSurface,
+                  onPressed: _showLayerSheet,
+                  child: const Icon(Icons.layers, color: BsasColors.radarCyan),
+                ),
+                const SizedBox(height: 8),
+
                 // Recenter
                 FloatingActionButton(
                   heroTag: 'btn-recenter',
@@ -481,6 +515,225 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
           ),
         ],
       ),
+    );
+  }
+
+  void _showLayerSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: BsasColors.darkSurface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return SafeArea(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: Text(
+                        'MAP LAYERS & SENSORS',
+                        style: BsasTypography.caption.copyWith(
+                          color: BsasColors.radarCyan,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1.2,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    RadioListTile<MapLayerType>(
+                      title: const Text('Standard (OpenStreetMap)', style: TextStyle(color: Colors.white)),
+                      subtitle: const Text('Vector-rendered road and topographical raster',
+                          style: TextStyle(color: Colors.white70, fontSize: 12)),
+                      value: MapLayerType.standard,
+                      groupValue: _currentLayer,
+                      activeColor: BsasColors.radarCyan,
+                      onChanged: (val) {
+                        if (val != null) {
+                          setState(() => _currentLayer = val);
+                          setSheetState(() {});
+                        }
+                      },
+                    ),
+                    RadioListTile<MapLayerType>(
+                      title: const Text('Satellite (Esri World Imagery)', style: TextStyle(color: Colors.white)),
+                      subtitle: const Text('High-resolution global optical satellite photography',
+                          style: TextStyle(color: Colors.white70, fontSize: 12)),
+                      value: MapLayerType.satellite,
+                      groupValue: _currentLayer,
+                      activeColor: BsasColors.radarCyan,
+                      onChanged: (val) {
+                        if (val != null) {
+                          setState(() => _currentLayer = val);
+                          setSheetState(() {});
+                        }
+                      },
+                    ),
+                    RadioListTile<MapLayerType>(
+                      title: const Text('Offline Sector (0 Data / Local Cache)', style: TextStyle(color: Colors.white)),
+                      subtitle: Text(
+                        'Cached: ${_offlineMap.tileCount} tiles (${_offlineMap.storageMb.toStringAsFixed(1)} MB)',
+                        style: const TextStyle(color: BsasColors.safeGreen, fontSize: 12),
+                      ),
+                      value: MapLayerType.offline,
+                      groupValue: _currentLayer,
+                      activeColor: BsasColors.radarCyan,
+                      onChanged: (val) {
+                        if (val != null) {
+                          setState(() => _currentLayer = val);
+                          setSheetState(() {});
+                        }
+                      },
+                    ),
+                    const Divider(color: BsasColors.darkBorder),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                      child: Text(
+                        'OVERLAY CHANNELS',
+                        style: BsasTypography.caption.copyWith(
+                          color: BsasColors.radarCyan,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1.2,
+                        ),
+                      ),
+                    ),
+                    SwitchListTile(
+                      title: const Text('Restricted Zones & Polygons', style: TextStyle(color: Colors.white, fontSize: 14)),
+                      value: _showSafetyZones,
+                      activeThumbColor: BsasColors.radarCyan,
+                      onChanged: (v) {
+                        setState(() => _showSafetyZones = v);
+                        setSheetState(() {});
+                      },
+                    ),
+                    SwitchListTile(
+                      title: const Text('Movement Breadcrumb Trail', style: TextStyle(color: Colors.white, fontSize: 14)),
+                      value: _showTrail,
+                      activeThumbColor: BsasColors.radarCyan,
+                      onChanged: (v) {
+                        setState(() => _showTrail = v);
+                        setSheetState(() {});
+                      },
+                    ),
+                    SwitchListTile(
+                      title: const Text('GPS Accuracy Radius', style: TextStyle(color: Colors.white, fontSize: 14)),
+                      value: _showAccuracyRing,
+                      activeThumbColor: BsasColors.radarCyan,
+                      onChanged: (v) {
+                        setState(() => _showAccuracyRing = v);
+                        setSheetState(() {});
+                      },
+                    ),
+                    const SizedBox(height: 8),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: BsasColors.radarCyan),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                          icon: const Icon(Icons.download_for_offline, color: BsasColors.radarCyan),
+                          label: const Text('PREPARE OFFLINE AREA', style: TextStyle(color: BsasColors.radarCyan)),
+                          onPressed: () {
+                            Navigator.pop(context);
+                            _showPrepareOfflineDialog();
+                          },
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showPrepareOfflineDialog() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDlgState) {
+            final region = OfflineMapService.defaultRegion;
+            return AlertDialog(
+              backgroundColor: BsasColors.darkSurface,
+              title: const Text('Prepare Offline Map Region', style: TextStyle(color: Colors.white)),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(region.name, style: const TextStyle(color: BsasColors.radarCyan, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 4),
+                  Text(region.description, style: const TextStyle(color: Colors.white70, fontSize: 13)),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Coverage: ${region.minLat}° - ${region.maxLat}° N, ${region.minLon}° - ${region.maxLon}° E',
+                    style: BsasTypography.monoDiagnostics.copyWith(fontSize: 11),
+                  ),
+                  Text(
+                    'Zoom Range: Levels ${region.minZoom} to ${region.maxZoom}',
+                    style: BsasTypography.monoDiagnostics.copyWith(fontSize: 11),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Current Cache: ${_offlineMap.tileCount} tiles (${_offlineMap.storageMb.toStringAsFixed(1)} MB)',
+                    style: const TextStyle(color: BsasColors.safeGreen, fontWeight: FontWeight.bold, fontSize: 12),
+                  ),
+                  if (_offlineMap.status == OfflineMapStatus.downloading) ...[
+                    const SizedBox(height: 16),
+                    LinearProgressIndicator(
+                      value: _offlineMap.downloadProgress,
+                      color: BsasColors.radarCyan,
+                      backgroundColor: Colors.white10,
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Downloading: ${(_offlineMap.downloadProgress * 100).toStringAsFixed(0)}%',
+                      style: const TextStyle(color: Colors.white70, fontSize: 11),
+                    ),
+                  ],
+                ],
+              ),
+              actions: [
+                if (_offlineMap.tileCount > 0)
+                  TextButton(
+                    child: const Text('Delete Cache', style: TextStyle(color: BsasColors.criticalRed)),
+                    onPressed: () async {
+                      await _offlineMap.deleteRegion(region.id);
+                      setDlgState(() {});
+                      if (context.mounted) Navigator.pop(context);
+                    },
+                  ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor: BsasColors.safeGreen),
+                  onPressed: _offlineMap.status == OfflineMapStatus.downloading
+                      ? null
+                      : () async {
+                          await _offlineMap.downloadRegion(region.id);
+                          setDlgState(() {});
+                          if (context.mounted) Navigator.pop(context);
+                        },
+                  child: Text(
+                    _offlineMap.status == OfflineMapStatus.downloading ? 'Downloading...' : 'Download Sector',
+                    style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 }

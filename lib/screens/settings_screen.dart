@@ -5,6 +5,11 @@ import '../core/theme/bsas_typography.dart';
 import '../core/widgets/status_badge.dart';
 import '../models/alert_preferences.dart';
 import '../services/model_manager.dart';
+import 'about_screen.dart';
+import 'help_screen.dart';
+import 'onboarding_screen.dart';
+import 'permission_setup_screen.dart';
+import 'privacy_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({
@@ -183,6 +188,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
               },
             ),
 
+          _header('SYSTEM, PERMISSIONS & TOUR'),
+          ListTile(
+            leading: const Icon(Icons.security, color: BsasColors.radarCyan),
+            title: const Text('System Permissions', style: TextStyle(color: Colors.white)),
+            subtitle: const Text('Audit and configure GNSS location and notification channels'),
+            trailing: const Icon(Icons.chevron_right, color: BsasColors.textMuted),
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const PermissionSetupScreen()),
+              );
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.explore_outlined, color: BsasColors.radarCyan),
+            title: const Text('Feature Onboarding Tour', style: TextStyle(color: Colors.white)),
+            subtitle: const Text('Review offline-first capabilities and civilian protection protocols'),
+            trailing: const Icon(Icons.chevron_right, color: BsasColors.textMuted),
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const OnboardingScreen()),
+              );
+            },
+          ),
+
           _header('DIAGNOSTICS & SYSTEM STATUS'),
           ListTile(
             leading: const Icon(Icons.monitor_heart_outlined, color: BsasColors.safeGreen),
@@ -192,16 +221,39 @@ class _SettingsScreenState extends State<SettingsScreen> {
             onTap: widget.onOpenDiagnostics,
           ),
 
-          _header('ABOUT & LICENSING'),
-          const ListTile(
-            leading: Icon(Icons.verified_user_outlined, color: BsasColors.safeGreen),
-            title: Text('BSAS v2.4 Production Build', style: TextStyle(color: Colors.white)),
-            subtitle: Text('Border Safety & Alert System • Offline-First Civilian Safety'),
+          _header('HELP & DATA GOVERNANCE'),
+          ListTile(
+            leading: const Icon(Icons.help_outline, color: BsasColors.radarCyan),
+            title: const Text('Emergency Help & Protocols', style: TextStyle(color: Colors.white)),
+            subtitle: const Text('Severity tiers, escape routing advice, and troubleshooting'),
+            trailing: const Icon(Icons.chevron_right, color: BsasColors.textMuted),
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const HelpScreen()),
+              );
+            },
           ),
-          const ListTile(
-            leading: Icon(Icons.copyright_outlined),
-            title: Text('Open Source Licenses', style: TextStyle(color: Colors.white)),
-            subtitle: Text('Qwen3 (Apache-2.0) • llama.cpp (MIT) • Flutter Map (BSD)'),
+          ListTile(
+            leading: const Icon(Icons.privacy_tip_outlined, color: BsasColors.safeGreen),
+            title: const Text('Privacy & Data Governance', style: TextStyle(color: Colors.white)),
+            subtitle: const Text('Zero cloud telemetry policy and local SQLite purge'),
+            trailing: const Icon(Icons.chevron_right, color: BsasColors.textMuted),
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const PrivacyScreen()),
+              );
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.info_outline, color: BsasColors.radarCyan),
+            title: const Text('About BSAS', style: TextStyle(color: Colors.white)),
+            subtitle: const Text('Version v1.1.0 • Architecture, licenses & build details'),
+            trailing: const Icon(Icons.chevron_right, color: BsasColors.textMuted),
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const AboutScreen()),
+              );
+            },
           ),
           const SizedBox(height: 32),
         ],

@@ -306,7 +306,12 @@ class _AppShellState extends State<AppShell> {
             loadBoundaries: (widget.boundaryProvider ?? OfflineBoundaryProvider())
                 .loadEnabledBoundaries,
           ),
-          AlertsScreen(alertService: _alerts),
+          AlertsScreen(
+            alertService: _alerts,
+            eventStore: _eventStore,
+            onViewOnMap: () => _go(1),
+            onSafeRoute: () => _go(3),
+          ),
           AiChatScreen(
             chatService: _chatService,
             memoryService: _chatMemory,

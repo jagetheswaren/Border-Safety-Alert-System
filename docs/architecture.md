@@ -1,227 +1,115 @@
-# Border Safety Alert System (BSAS) — System Architecture
+# System Architecture & Technical Specification — Border Safety Alert System (BSAS)
 
-This document specifies the technical architecture, data pipelines, module interactions, and safety isolation invariants of the **Border Safety Alert System (BSAS)**.
+**Target Ecosystem:** Android 7.0+ (API 24 to 35), ARM64-v8a / ARM32, FastAPI, Next.js 16  
+**Latest Version:** v1.1.0 (Production Release)  
+**Repository:** [jagetheswaren/Border-Safety-Alert-System](https://github.com/jagetheswaren/Border-Safety-Alert-System)  
+**Last Updated:** September 23, 2026  
 
 ---
 
-## 1. High-Level Architecture Blueprint
+## 1. Complete End-to-End System Blueprint
 
 ```text
-                               ┌─────────────────────────┐
-                               │         USER            │
-                               │   Android Smartphone    │
-                               └────────────┬────────────┘
-                                            │
-                                            ▼
-                          ┌───────────────────────────────────┐
-                          │        FLUTTER MOBILE APP         │
-                          │            (Dart / UI)            │
-                          │   Home / Safety / Map / Alerts    │
-                          │        Route / AI / Settings      │
-                          └─────────────────┬─────────────────┘
-                                            │
-                 ┌──────────────────────────┼──────────────────────────┐
-                 │                          │                          │
-                 ▼                          ▼                          ▼
-          ┌─────────────┐            ┌──────────────┐           ┌──────────────┐
-          │  GPS / GNSS │            │ Offline Map  │           │ Local SQLite │
-          │ Coordinates │            │ Tile Storage │           │ Event Store  │
-          └──────┬──────┘            └──────────────┘           └──────┬───────┘
-                 │                                                     │
-                 ▼                                                     │
-          ┌─────────────┐                                              │
-          │  Geofence   │                                              │
-          │   Engine    │                                              │
-          └──────┬──────┘                                              │
-                 │                                                     │
-                 ▼                                                     │
-          ┌─────────────┐                                              │
-          │   Feature   │                                              │
-          │ Extraction  │                                              │
-          └──────┬──────┘                                              │
-                 │                                                     │
-                 ▼                                                     │
-          ┌─────────────┐                                              │
-          │ Z-Score     │                                              │
-          │ Scaler      │                                              │
-          └──────┬──────┘                                              │
-                 │                                                     │
-          ┌──────┴──────┐                                              │
-          ▼             ▼                                              │
-     ┌─────────┐   ┌─────────────┐                                     │
-     │  LSTM   │   │Random Forest│                                     │
-     │ TFLite  │   │ Model (JSON)│                                     │
-     └────┬────┘   └──────┬──────┘                                     │
-          │               │                                            │
-          └───────┬───────┘                                            │
-                  ▼                                                    │
-            ┌─────────────┐                                            │
-            │ Risk Engine │◄───────────────────────────────────────────┘
-            └──────┬──────┘
-                   │
-                   ▼
-            ┌─────────────┐
-            │Alert Service│
-            └──────┬──────┘
-                   │
-       ┌───────────┼───────────┐
-       ▼           ▼           ▼
-  Notification   Sound     Vibration
-                   │
-                   ▼
-              Text-to-Speech
-                   │
-                   ▼
-                 USER
+                     CIVILIAN FIELD OPERATOR
+                                │
+                                ▼
+         ┌─────────────────────────────────────────────┐
+         │       FLUTTER PRODUCTION ANDROID APP        │
+         │ (All 15 Fully Navigable Functional Pages)   │
+         └──────────────────────┬──────────────────────┘
+                                │
+        ┌───────────────────────┼───────────────────────┐
+        ▼                       ▼                       ▼
+ ┌─────────────┐        ┌──────────────┐        ┌──────────────┐
+ │  GPS / GNSS │        │ Offline Map  │        │ Local SQLite │
+ │ Hardware Fix│        │ Tile Storage │        │ Persistence  │
+ └──────┬──────┘        │(OSM/Esri Sat)│        └──────┬───────┘
+        │               └──────────────┘               │
+        ▼                                              │
+ ┌─────────────┐                                       │
+ │  Geofence   │                                       │
+ │ Mathematics │ (Sub-meter Point-In-Polygon)          │
+ └──────┬──────┘                                       │
+        │                                              │
+        ▼                                              │
+ ┌─────────────┐                                       │
+ │   Feature   │ (Velocity, Bearing Delta,             │
+ │ Extraction  │  Distance-to-Boundary Sliding Window) │
+ └──────┬──────┘                                       │
+        │                                              │
+        ▼                                              │
+ ┌─────────────┐                                       │
+ │   Scaler    │ (Robust Z-Score Normalization)        │
+ └──────┬──────┘                                       │
+        │                                              │
+   ┌────┴──────────────┐                               │
+   ▼                   ▼                               │
+┌──────────────┐┌──────────────┐                       │
+│  LSTM Neural ││Random Forest │                       │
+│(TFLite 1x5x6)││Classifier(JSON)                      │
+└──────┬───────┘└──────┬───────┘                       │
+       │               │                               │
+       └───────┬───────┘                               │
+               ▼                                       │
+      ┌─────────────────┐                              │
+      │   Risk Engine   │ (Deterministic Safety Fusion)│
+      └────────┬────────┘                              │
+               │                                       │
+               ▼                                       │
+      ┌─────────────────┐                              │
+      │  Alert Service  │◄─────────────────────────────┘
+      └────────┬────────┘
+               │
+    ┌──────────┼──────────┬──────────┐
+    ▼          ▼          ▼          ▼
+┌────────┐┌────────┐┌────────┐┌─────────────┐
+│ Acoustic││Tactile ││Android ││Android Post │
+│ Sirens ││Haptics ││Voice TTS││Notifications│
+└────────┘└────────┘└────────┘└─────────────┘
 
+SERVER & DASHBOARD CO-ORDINATION:
+Flutter Mobile ────(TLS 1.3 / HTTPS)────► FastAPI REST API ────► Server DB ────► Next.js Dashboard
 
-            SERVER & OPERATIONS PIPELINE (HTTPS / REST)
-            ───────────────────────────────────────────
-
-                          Flutter Mobile App
-                                  │
-                                  │ HTTPS / REST API
-                                  ▼
-                          ┌───────────────┐
-                          │    FastAPI    │
-                          │    Backend    │
-                          └───────┬───────┘
-                                  │
-                   ┌──────────────┼──────────────┐
-                   ▼              ▼              ▼
-               Auth API       Events API     Alerts API
-                   │              │              │
-                   └──────────────┼──────────────┘
-                                  ▼
-                          ┌───────────────┐
-                          │   Database    │
-                          │   (SQLite)    │
-                          └───────┬───────┘
-                                  │
-                                  ▼
-                          ┌───────────────┐
-                          │    Next.js    │
-                          │ Web Dashboard │
-                          └───────────────┘
-
-
-                   LOCAL CONVERSATIONAL AI PIPELINE
-                   ────────────────────────────────
-
-                      Safety Context Snapshot
-                      (GPS, Risk, Alerts, Mode)
-                                  │ [READ-ONLY]
-                                  ▼
-                         ┌─────────────────┐
-                         │ LocalChatService│
-                         └────────┬────────┘
-                                  │
-                                  ▼
-                         ┌─────────────────┐
-                         │  ModelManager   │
-                         └────────┬────────┘
-                                  │
-                                  ▼
-                         ┌─────────────────┐
-                         │  GGUF Runtime   │
-                         └────────┬────────┘
-                                  │
-                                  ▼
-                         ┌─────────────────┐
-                         │   Qwen3 0.6B    │
-                         │    Q4_0 GGUF    │
-                         └────────┬────────┘
-                                  │
-                                  ▼
-                         Advisory AI Response
-                         (Streamed to Chat UI)
+GENERATIVE AI SUBSYSTEMS:
+• ANDROID ON-DEVICE: AI Chat UI ──► LocalChatService ──► ModelManager ──► Qwen3-0.6B-Q4_0.gguf (llama.cpp)
+• LAPTOP DEVELOPMENT: BSAS Flutter ──► Local AI Service ──► Ollama (127.0.0.1:11434) ──► GPU In-Memory Model
 ```
 
 ---
 
-## 2. Core Operational Pipelines
+## 2. Mobile Page Map (All 15 Verified Screens)
 
-### Pipeline 1: On-Device Safety & Alert Pipeline (Authoritative)
-
-The safety pipeline executes 100% on the mobile device and does not depend on cloud connectivity.
-
-1. **GNSS Location Acquisition**: The device acquires satellite readings via `GpsService`, recording `latitude`, `longitude`, `accuracy`, `speed`, and `bearing`.
-2. **Geofence Evaluation**: The coordinates are compared against active boundary polygons stored in the local SQLite database (`AppDatabase` / `BoundaryRepository`) using ray-casting point-in-polygon and Haversine minimum distance algorithms.
-3. **Feature Construction**: A 5-step rolling trajectory window is constructed:
-   $$\mathbf{X} = [\text{lat}, \text{lon}, \text{speed}, \text{bearing}, \text{distance\_to\_boundary}, \text{bearing\_diff}]$$
-4. **Feature Normalization**: Features are scaled using parameters from `scaler_params.json` ($z = \frac{x - \mu}{\sigma}$).
-5. **Machine Learning Inference**:
-   - **LSTM (`phase7-lstm-v1.tflite`)**: Input shape `[1, 5, 6]`, outputs predicted coordinate displacement $[\Delta\text{lat}, \Delta\text{lon}]$.
-   - **Random Forest (`phase7-rf-v1.json`)**: Majority voting across decision trees classifies risk level (`low`, `medium`, `high`).
-6. **Risk Engine Fusion**: `RiskEngine` fuses deterministic geofence state (`SAFE`, `CAUTION`, `WARNING`, `CRITICAL`) with ML inferences. Deterministic boundary violation always supersedes ML predictions.
-7. **Event-Driven Alert Dispatch**: `AlertService` triggers the configured alert channels:
-   - System notification (`NotificationService`)
-   - Audible warning tones (`SoundService`)
-   - Haptic vibration patterns (`VibrationAlertService`)
-   - Voice announcements (`VoiceAlertService` / TTS)
-
-### Pipeline 2: Server & Operations Sync Pipeline
-
-When network connectivity is present, the application synchronizes with the operations infrastructure:
-
-1. **REST Client (`Flutter`)**: Sends background event logs and incident reports to the FastAPI backend.
-2. **FastAPI Backend**:
-   - Validates requests via Pydantic schemas.
-   - Enforces authentication with OAuth2 Bearer tokens signed via JWT (`HS256`).
-   - Persists data to the backend relational database (`SQLAlchemy`).
-3. **Next.js Web Dashboard**:
-   - Consumes backend endpoints (`/api/v1/dashboard/stats`, `/api/v1/incidents`, `/api/v1/alerts`).
-   - Renders live incident locations on Leaflet maps, tabular logs, and system metrics.
-
-### Pipeline 3: Local Conversational AI Pipeline (Advisory Only)
-
-The local AI assistant provides conversational explanation and diagnostics directly on-device:
-
-1. **Context Snapshot**: A read-only snapshot of current safety conditions (`latitude`, `longitude`, `accuracy`, `zoneState`, `riskState`, `activeAlertCount`) is passed to `LocalChatService`.
-2. **Model Lifecycle**: `ModelManager` verifies model presence (`models/qwen/Qwen3-0.6B-Q4_0.gguf`), validates file integrity against SHA-256 (`DA2572F16C06133561CE56ACCAA822216F2391EF4D37FBA427801CD6736417D4`), and manages on-device loading.
-3. **Inference Execution**: Uses a local GGUF runtime to generate explanatory tokens without cloud API access.
+1. **Splash (`SplashScreen`):** Animated radar shield logo reveal with hardware readiness check (GPS, Offline Storage, ML Engine).
+2. **Onboarding (`OnboardingScreen`):** 3-slide interactive civilian education on perimeter awareness, zero-cloud processing, and emergency actions.
+3. **Permissions (`PermissionSetupScreen`):** Live audit and user request flow for GNSS Location, Android System Notifications, and Battery Optimization.
+4. **Home (`HomeScreen`):** Real-time safety status HUD, active sector Proximity, GNSS accuracy badge, and quick action cards.
+5. **Safety Status (`SafetyScreen`):** Large visual status indicator (SAFE / CAUTION / WARNING / CRITICAL), ML confidence metric, and perimeter guidance.
+6. **Live Map (`MapScreen`):** Full-screen interactive map with dynamic layer switcher (Standard OSM, Esri World Imagery Satellite, Offline Sector Cache), accuracy circle, and geofence overlays.
+7. **Alerts (`AlertsScreen`):** Real-time chronological incident feed with delivery audit badges (Sound, Vibration, TTS, Notification) and tap-to-inspect.
+8. **Alert Details (`AlertDetailsScreen`):** Comprehensive incident report showing exact coordinates, timestamp, distance, hardware dispatch audit, and escape guidance.
+9. **Safe Route (`RouteScreen`):** Obstacle-avoidance A* pathfinding calculating exit corridors avoiding restricted boundary polygons.
+10. **AI Assistant (`AiChatScreen`):** Streaming token UI powered by local Qwen3-0.6B / Ollama with read-only safety snapshot isolation.
+11. **History (`HistoryScreen`):** SQLite-backed historical audit log with filtering (All, Critical, Warning, Unsynced) and one-tap purge.
+12. **Settings (`SettingsScreen`):** Toggles for acoustic siren, haptic vibration, TTS voice, language selection, and navigation links.
+13. **About (`AboutScreen`):** Complete build information, architecture breakdown, software licenses, and GitHub repository links.
+14. **Privacy (`PrivacyScreen`):** Zero-cloud tracking policy, data minimization, and one-tap local cache/history purge.
+15. **Help (`HelpScreen`):** Emergency protocols, severity tier explanation, troubleshooting guide, and civilian notices.
 
 ---
 
-## 3. Strict Safety Isolation Invariant
+## 3. Geospatial & Machine Learning Specifications
 
-An essential architectural invariant of BSAS is the **unidirectional decoupling** between the safety engine and the conversational AI assistant:
+### 3.1 Deterministic Geofencing
+- **Mathematical Method:** Ray-casting algorithm for Point-in-Polygon (PIP) testing; Haversine & Cross-Track formulations for minimum distance to boundary segments.
+- **Authority:** Authoritative over all statistical models and generative AI advisory text.
 
-```text
-┌──────────────────────────────────────────────────────────┐
-│          DETERMINISTIC SAFETY & ML PIPELINE              │
-│       GPS → Geofence → LSTM/RF → RiskEngine → Alerts     │
-└────────────────────────────┬─────────────────────────────┘
-                             │
-                             │ Read-Only Context Snapshot
-                             ▼
-┌──────────────────────────────────────────────────────────┐
-│            ADVISORY CONVERSATIONAL ASSISTANT             │
-│            LocalChatService (Qwen3 0.6B GGUF)            │
-└──────────────────────────────────────────────────────────┘
-```
-
-- **Read-Only Context**: The conversational AI receives an immutable snapshot of safety states.
-- **Zero Control Authority**: The AI has no execution hooks or API paths to alter GPS fixes, redefine geofence zones, suppress alarms, or modify the application risk state.
-- **Safety Precedence**: Deterministic boundary rules always govern civilian safety alerts.
-
----
-
-## 4. Component Mapping
-
-| Subsystem | Input | Processing | Output | Implementation File |
-| :--- | :--- | :--- | :--- | :--- |
-| **GPS Acquisition** | Satellite GNSS signals | Hardware location stream filtering | `LocationModel` (lat, lon, accuracy, speed, bearing) | `lib/services/gps_service.dart` |
-| **Geofencing** | `LocationModel` + boundary polygons | Point-in-polygon & Haversine distance | `GeoFenceResult` (zone, distance, state) | `lib/services/geofence_service.dart` |
-| **Local Boundary DB** | Bundled GeoJSON / SQL seeds | SQLite persistence & spatial indexing | Stored boundary geometries | `lib/services/boundary_repository.dart` |
-| **Feature Scaling** | 6-feature trajectory window | Z-score normalization | Scaled feature vector | `lib/services/ai_prediction_service.dart` |
-| **LSTM Prediction** | Tensor `[1, 5, 6]` | Sequential neural inference | Next coordinate displacement `[1, 2]` | `assets/models/phase7-lstm-v1.tflite` |
-| **Random Forest** | Scaled features `[4]` | Decision tree ensemble voting | Risk class (`low`, `medium`, `high`) | `assets/models/phase7-rf-v1.json` |
-| **Risk Engine** | Geofence state + ML output | Weighted rule fusion | Final `SafetyState` | `lib/services/risk_engine.dart` |
-| **Alert Service** | Risk change event | Cooldown & channel orchestration | Dispatch triggers | `lib/services/alert_service.dart` |
-| **Android Alerts** | Alert triggers | Native platform channels | Notifications, Audio, Vibration, TTS | `lib/services/*_alert_service.dart` |
-| **Offline Map** | Local cached map tiles + GPS | Vector/raster rendering | Interactive map UI | `lib/services/offline_map_service.dart` |
-| **Local AI Manager** | GGUF model binary | File integrity & checksum validation | Model ready / loaded state | `lib/services/model_manager.dart` |
-| **Local Chat** | User prompt + safety snapshot | Streaming inference token generation | Text advice response | `lib/services/local_chat_service.dart` |
-| **Backend API** | HTTP requests (JSON/Form) | Authentication, validation, DB query | JSON API responses | `backend/app/main.py` |
-| **Web Dashboard** | Backend JSON endpoints | React/Next.js dashboard rendering | Operations UI | `frontend/src/app/dashboard/` |
+### 3.2 Machine Learning Invariants
+- **LSTM Input Tensor:** `[1, 5, 6]` representing 5 historical time steps of 6 normalized features:
+  1. `latitude`
+  2. `longitude`
+  3. `speed` (m/s)
+  4. `bearing` (degrees)
+  5. `distance_to_boundary` (meters)
+  6. `bearing_difference` (degrees)
+- **Scaler:** `assets/models/scaler_params.json` (Median and Interquartile Range parameters).
+- **Random Forest:** `assets/models/phase7-rf-v1.json` evaluating trajectory curvature and deceleration markers.
