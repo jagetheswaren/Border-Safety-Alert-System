@@ -1,81 +1,42 @@
 "use client";
-
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { login } from "@/lib/api";
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { ShieldCheck, ArrowRight, LockKeyhole } from 'lucide-react';
+import { login, getMe, isOperator } from '@/lib/api';
 
 export default function LoginPage() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const router = useRouter();
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError("");
-    
+  useEffect(() => {
+    const reason = new URLSearchParams(window.location.search).get('reason');
+    // Defer to keep the initial render identical on the server and browser.
+    queueMicrotask(() => {
+      if (reason === 'expired') setError('Your session has expired. Please sign in again.');
+      if (reason === 'role') setError('Dashboard access requires an active ADMIN or OPERATOR account. Field users should use the BSAS mobile app.');
+    });
+  }, []);
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault(); setLoading(true); setError('');
     try {
-      // "admin@bsas.local" is seeded
-      const res = await login(email, password);
-      localStorage.setItem("token", res.access_token);
-      router.push("/dashboard");
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Login failed");
-    } finally {
-      setLoading(false);
-    }
+      const response = await login(email.trim(), password);
+      localStorage.setItem('token', response.access_token);
+      const user = await getMe();
+      if (!isOperator(user)) throw new Error('Dashboard access requires an active ADMIN or OPERATOR account. Field users should use the BSAS mobile app.');
+      router.replace('/dashboard');
+    } catch (error) {
+      localStorage.removeItem('token');
+      setError(error instanceof Error ? error.message : 'Unable to sign in.');
+    } finally { setLoading(false); }
   };
-
-  return (
-    <div className="min-h-screen bg-gray-950 flex flex-col justify-center items-center p-4">
-      <div className="max-w-md w-full bg-gray-900 border border-gray-800 rounded-xl shadow-2xl p-8 space-y-6">
-        <div className="text-center">
-          <h1 className="text-3xl font-bold text-white tracking-tight">BSAS Ops</h1>
-          <p className="text-gray-400 mt-2 text-sm">Sign in to the Border Safety Operations Center</p>
-        </div>
-        
-        {error && (
-          <div className="bg-red-500/10 border border-red-500/50 text-red-400 px-4 py-3 rounded-lg text-sm">
-            {error}
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">Email Address</label>
-            <input
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-colors"
-              placeholder="admin@bsas.local"
-            />
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">Password</label>
-            <input
-              type="password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-colors"
-              placeholder="••••••••"
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-blue-600 hover:bg-blue-500 text-white font-medium py-2.5 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-900 disabled:opacity-50"
-          >
-            {loading ? "Authenticating..." : "Sign In"}
-          </button>
-        </form>
-      </div>
-    </div>
-  );
+  return <div className="auth-page">
+    <aside className="auth-aside"><div className="brand"><span className="brand-icon"><ShieldCheck size={25} /></span><span><strong>BSAS</strong><small>BORDER SAFETY ALERT SYSTEM</small></span></div><div><div className="eyebrow">Awareness. Coordination. Care.</div><h1>A clearer view.<br />A safer journey.</h1><p>A shared workspace for the people who help keep communities informed and safe.</p></div><footer>Border Safety Alert System · Operations workspace</footer></aside>
+    <main className="auth-content"><div className="auth-form"><div className="auth-brand-mobile"><ShieldCheck size={25} />BSAS</div><p className="eyebrow">Operations workspace</p><h1>Welcome back</h1><p className="page-description">Sign in to view safety zones, alerts, and incident reports.</p>{error && <div className="auth-error" role="alert">{error}</div>}
+      <form onSubmit={submit}><div><label htmlFor="email">Email address</label><input className="input" id="email" type="email" autoComplete="username" placeholder="you@organisation.org" required value={email} onChange={event => setEmail(event.target.value)} disabled={loading} /></div><div><label htmlFor="password">Password</label><input className="input" id="password" type="password" autoComplete="current-password" placeholder="Enter your password" required value={password} onChange={event => setPassword(event.target.value)} disabled={loading} /></div><button className="button button-primary" type="submit" disabled={loading}>{loading ? 'Signing in…' : 'Sign in to workspace'}{!loading && <ArrowRight size={16} />}</button></form>
+      <p className="auth-footnote"><LockKeyhole size={13} style={{ display: 'inline', marginRight: 6 }} />For authorised administrators and operators.<br />Need access? Contact your BSAS administrator.</p>
+    </div></main>
+  </div>;
 }
+

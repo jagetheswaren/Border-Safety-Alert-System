@@ -71,6 +71,7 @@ class ModelManager extends ChangeNotifier {
 
   bool get isModelLoaded => _state == ModelState.loaded || _state == ModelState.generating;
   bool get isModelReady => _state == ModelState.ready || _state == ModelState.loaded;
+  Future<String> get modelFilePath async => (await _modelFile).path;
 
   Future<String> get _modelDirPath async {
     if (_modelDirectoryPath != null) return _modelDirectoryPath!;

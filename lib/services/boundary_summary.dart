@@ -5,7 +5,7 @@ import 'package:sqflite/sqflite.dart';
 import '../database/app_database.dart';
 import '../models/boundary_model.dart';
 import 'boundary_repository.dart';
-import 'boundary_seed.dart';
+import 'boundary_import.dart';
 
 /// Minimal read model for the Phase 4 UI proof (count + provenance only).
 /// No geometry, no safety math — that belongs to Phase 5.
@@ -34,7 +34,7 @@ abstract class BoundarySummaryProvider {
 /// boundaries once, and reports what is stored. Failures become
 /// [BoundarySummary.error]; nothing is fabricated.
 class OfflineBoundaryProvider implements BoundarySummaryProvider {
-  static const assetPath = 'assets/boundaries/demo_boundaries.geojson';
+  static const assetPath = String.fromEnvironment('BSAS_BOUNDARY_ASSET', defaultValue: 'assets/boundaries/approved_boundaries.geojson');
   static const dbFileName = 'border_safety.db';
 
   /// Loads enabled boundaries through [BoundaryRepository]. The database is
@@ -46,8 +46,9 @@ class OfflineBoundaryProvider implements BoundarySummaryProvider {
     try {
       final repository = BoundaryRepository(appDb.db);
       final raw = await rootBundle.loadString(assetPath);
-      await ensureDemoBoundariesSeeded(repository, raw);
-      return repository.getEnabledBoundaries();
+      final approved = parseBoundariesFromGeoJson(raw).where((b) => !b.isDemo && (b.source?.isNotEmpty ?? false) && (b.version?.isNotEmpty ?? false)).toList();
+      if (approved.isNotEmpty) await repository.insertBoundaries(approved);
+      return (await repository.getEnabledBoundaries()).where((b) => !b.isDemo && (b.source?.isNotEmpty ?? false) && (b.version?.isNotEmpty ?? false)).toList();
     } finally {
       await appDb.close();
     }
@@ -59,7 +60,7 @@ class OfflineBoundaryProvider implements BoundarySummaryProvider {
       final stored = await _loadAllBoundaries();
       return BoundarySummary(
         count: stored.length,
-        allDemo: stored.every((b) => b.isDemo),
+        allDemo: stored.isNotEmpty && stored.every((b) => b.isDemo),
       );
     } catch (e) {
       return BoundarySummary(count: 0, allDemo: true, error: '$e');
@@ -72,8 +73,9 @@ class OfflineBoundaryProvider implements BoundarySummaryProvider {
     try {
       final repository = BoundaryRepository(appDb.db);
       final raw = await rootBundle.loadString(assetPath);
-      await ensureDemoBoundariesSeeded(repository, raw);
-      return repository.getAllBoundaries();
+      final approved = parseBoundariesFromGeoJson(raw).where((b) => !b.isDemo && (b.source?.isNotEmpty ?? false) && (b.version?.isNotEmpty ?? false)).toList();
+      if (approved.isNotEmpty) await repository.insertBoundaries(approved);
+      return (await repository.getAllBoundaries()).where((b) => !b.isDemo && (b.source?.isNotEmpty ?? false) && (b.version?.isNotEmpty ?? false)).toList();
     } finally {
       await appDb.close();
     }

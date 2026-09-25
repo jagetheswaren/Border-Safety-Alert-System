@@ -251,37 +251,80 @@ class _AiChatScreenState extends State<AiChatScreen> {
 
     return Scaffold(
       key: const Key('screen-ai-chat'),
-      appBar: AppBar(
-        title: Row(
+      backgroundColor: isDark ? BsasColors.darkBackground : BsasColors.lightBackground,
+      body: SafeArea(
+        child: Column(
           children: [
-            const BsasLogo(size: 22, animated: false),
-            const SizedBox(width: BsasSpacing.sm),
-            Text('Field Assistant', style: BsasTypography.heading.copyWith(fontSize: 16)),
-          ],
-        ),
-        actions: [
-          StatusBadge(
-            label: _statusLabel,
-            state: _statusState,
-            isPulsing: isGenerating,
-          ),
-          IconButton(
-            icon: const Icon(Icons.delete_sweep_outlined, size: 20),
-            tooltip: 'Clear Conversation',
-            onPressed: isGenerating ? null : _clearChat,
-          ),
-          IconButton(
-            icon: const Icon(Icons.info_outline, size: 20),
-            tooltip: 'Model Information',
-            onPressed: _showModelDiagnosticsDialog,
-          ),
-          const SizedBox(width: BsasSpacing.xs),
-        ],
-      ),
-      body: Column(
-        children: [
-          // Authoritative Sensor Snapshot Strip
-          _buildSensorTicker(context),
+            // Unified Tactical Header
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: BsasSpacing.screenMargin,
+                vertical: BsasSpacing.sm,
+              ),
+              decoration: BoxDecoration(
+                color: isDark ? BsasColors.darkSurface : BsasColors.lightSurface,
+                border: Border(
+                  bottom: BorderSide(
+                    color: isDark ? BsasColors.darkBorder : BsasColors.lightBorder,
+                  ),
+                ),
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      const BsasLogo(size: 24, animated: false),
+                      const SizedBox(width: BsasSpacing.sm),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'LOCAL AI TERMINAL',
+                              style: BsasTypography.caption.copyWith(
+                                color: isDark ? Colors.white : Colors.black87,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 1.2,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Air-Gapped Field Assistant',
+                              style: BsasTypography.caption.copyWith(
+                                color: BsasColors.radarCyan,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      StatusBadge(
+                        label: _statusLabel,
+                        state: _statusState,
+                        isPulsing: isGenerating,
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        icon: const Icon(Icons.delete_outline, size: 22),
+                        tooltip: 'Clear Session',
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        onPressed: isGenerating ? null : _clearChat,
+                      ),
+                      const SizedBox(width: 12),
+                      IconButton(
+                        icon: const Icon(Icons.data_object, size: 22),
+                        tooltip: 'Model Diagnostics',
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        onPressed: _showModelDiagnosticsDialog,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: BsasSpacing.sm),
+                  _buildSensorTicker(context),
+                ],
+              ),
+            ),
 
           // Conversation Messages
           Expanded(
@@ -309,36 +352,31 @@ class _AiChatScreenState extends State<AiChatScreen> {
           _buildInputBar(context, isGenerating, isDark),
         ],
       ),
-    );
+    ));
   }
 
   Widget _buildSensorTicker(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
     final snapshot = _buildSnapshot();
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: BsasSpacing.screenMargin, vertical: BsasSpacing.xs),
+      padding: const EdgeInsets.symmetric(horizontal: BsasSpacing.sm, vertical: BsasSpacing.xs),
       decoration: BoxDecoration(
-        color: isDark ? BsasColors.darkSurface : BsasColors.lightBorderSubtle,
-        border: Border(
-          bottom: BorderSide(
-            color: isDark ? BsasColors.darkBorder : BsasColors.lightBorder,
-            width: 1,
-          ),
-        ),
+        color: Colors.black.withValues(alpha: 0.2),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: BsasColors.darkBorder),
       ),
       child: Row(
         children: [
-          const Icon(Icons.sensors, size: 14, color: BsasColors.primaryBlue),
+          const Icon(Icons.cable, size: 14, color: BsasColors.warningOrange),
           const SizedBox(width: BsasSpacing.xs),
           Expanded(
             child: Text(
-              'Read-Only Sensor Snapshot: ${snapshot.riskState} • GPS: ${snapshot.gpsAvailable ? "Active" : "None"} • Zone: ${snapshot.zoneState} • Offline Mode',
-              style: BsasTypography.caption.copyWith(
-                fontSize: 11,
-                color: isDark ? BsasColors.textLightSecondary : BsasColors.textDarkSecondary,
+              'ATTACHED CONTEXT: ${snapshot.riskState} | GPS: ${snapshot.gpsAvailable ? "LOCKED" : "NONE"} | ZONE: ${snapshot.zoneState}',
+              style: BsasTypography.monoDiagnostics.copyWith(
+                fontSize: 10,
+                color: BsasColors.warningOrange,
+                fontWeight: FontWeight.bold,
               ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -359,68 +397,68 @@ class _AiChatScreenState extends State<AiChatScreen> {
       child: Container(
         margin: const EdgeInsets.only(bottom: BsasSpacing.md),
         constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width * 0.82,
+          maxWidth: MediaQuery.of(context).size.width * 0.9,
         ),
         padding: const EdgeInsets.all(BsasSpacing.md),
         decoration: BoxDecoration(
           color: isUser
-              ? BsasColors.primaryBlue
+              ? BsasColors.darkSurface
               : (isDark ? BsasColors.darkCard : BsasColors.lightCard),
-          borderRadius: BorderRadius.only(
-            topLeft: const Radius.circular(BsasSpacing.cardRadius),
-            topRight: const Radius.circular(BsasSpacing.cardRadius),
-            bottomLeft: Radius.circular(isUser ? BsasSpacing.cardRadius : 2),
-            bottomRight: Radius.circular(isUser ? 2 : BsasSpacing.cardRadius),
+          borderRadius: BorderRadius.circular(4),
+          border: Border.all(
+            color: isUser
+                ? BsasColors.safeGreen.withValues(alpha: 0.5)
+                : BsasColors.radarCyan.withValues(alpha: 0.3),
+            width: 1,
           ),
-          border: isUser
-              ? null
-              : Border.all(
-                  color: isDark ? BsasColors.darkBorder : BsasColors.lightBorder,
-                  width: 1,
-                ),
+          boxShadow: [
+            BoxShadow(
+              color: (isUser ? BsasColors.safeGreen : BsasColors.radarCyan).withValues(alpha: 0.05),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (!isUser) ...[
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const BsasLogo(size: 14, animated: false),
-                  const SizedBox(width: BsasSpacing.xs),
-                  Text(
-                    'BSAS AI',
-                    style: BsasTypography.caption.copyWith(
-                      color: BsasColors.primaryBlueLight,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 10,
-                    ),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  isUser ? Icons.person_outline : Icons.memory,
+                  size: 14,
+                  color: isUser ? BsasColors.safeGreen : BsasColors.radarCyan,
+                ),
+                const SizedBox(width: BsasSpacing.xs),
+                Text(
+                  isUser ? 'FIELD OPERATOR' : 'SYS.AI',
+                  style: BsasTypography.monoDiagnostics.copyWith(
+                    color: isUser ? BsasColors.safeGreen : BsasColors.radarCyan,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 10,
                   ),
-                ],
-              ),
-              const SizedBox(height: BsasSpacing.xs),
-            ],
+                ),
+                const Spacer(),
+                Text(
+                  timeStr,
+                  style: BsasTypography.monoDiagnostics.copyWith(
+                    fontSize: 10,
+                    color: isDark ? BsasColors.textLightMuted : BsasColors.textDarkMuted,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: BsasSpacing.sm),
             Text(
               msg.content,
-              style: BsasTypography.body.copyWith(
-                color: isUser
-                    ? Colors.white
-                    : (isDark ? BsasColors.textLightPrimary : BsasColors.textDarkPrimary),
-                height: 1.4,
-              ),
-            ),
-            const SizedBox(height: BsasSpacing.xs),
-            Align(
-              alignment: Alignment.bottomRight,
-              child: Text(
-                timeStr,
-                style: BsasTypography.caption.copyWith(
-                  fontSize: 10,
-                  color: isUser
-                      ? Colors.white70
-                      : (isDark ? BsasColors.textLightMuted : BsasColors.textDarkMuted),
-                ),
-              ),
+              style: isUser 
+                  ? BsasTypography.body.copyWith(color: Colors.white, height: 1.4)
+                  : BsasTypography.monoDiagnostics.copyWith(
+                      color: isDark ? Colors.white : Colors.black87,
+                      height: 1.5,
+                      fontSize: 13,
+                    ),
             ),
           ],
         ),
@@ -434,20 +472,23 @@ class _AiChatScreenState extends State<AiChatScreen> {
       child: Container(
         margin: const EdgeInsets.only(bottom: BsasSpacing.md),
         constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width * 0.82,
+          maxWidth: MediaQuery.of(context).size.width * 0.9,
         ),
         padding: const EdgeInsets.all(BsasSpacing.md),
         decoration: BoxDecoration(
           color: isDark ? BsasColors.darkCard : BsasColors.lightCard,
-          borderRadius: const BorderRadius.only(
-            topLeft: Radius.circular(BsasSpacing.cardRadius),
-            topRight: Radius.circular(BsasSpacing.cardRadius),
-            bottomRight: Radius.circular(BsasSpacing.cardRadius),
-          ),
+          borderRadius: BorderRadius.circular(4),
           border: Border.all(
-            color: BsasColors.primaryBlue.withValues(alpha: 0.5),
-            width: 1.2,
+            color: BsasColors.radarCyan.withValues(alpha: 0.8),
+            width: 1.5,
           ),
+          boxShadow: [
+            BoxShadow(
+              color: BsasColors.radarCyan.withValues(alpha: 0.2),
+              blurRadius: 12,
+              offset: const Offset(0, 0),
+            ),
+          ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -458,25 +499,26 @@ class _AiChatScreenState extends State<AiChatScreen> {
                 const SizedBox(
                   width: 12,
                   height: 12,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: BsasColors.primaryBlue),
+                  child: CircularProgressIndicator(strokeWidth: 2, color: BsasColors.radarCyan),
                 ),
                 const SizedBox(width: BsasSpacing.xs),
                 Text(
-                  'GENERATING ADVISORY...',
-                  style: BsasTypography.caption.copyWith(
-                    color: BsasColors.primaryBlue,
-                    fontWeight: FontWeight.w700,
+                  'SYS.AI :: SYNTHESIZING RESPONSE...',
+                  style: BsasTypography.monoDiagnostics.copyWith(
+                    color: BsasColors.radarCyan,
+                    fontWeight: FontWeight.bold,
                     fontSize: 10,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: BsasSpacing.xs),
+            const SizedBox(height: BsasSpacing.sm),
             Text(
-              _streamingContent.isEmpty ? 'Processing context snapshot...' : _streamingContent,
-              style: BsasTypography.body.copyWith(
-                color: isDark ? BsasColors.textLightPrimary : BsasColors.textDarkPrimary,
-                height: 1.4,
+              _streamingContent.isEmpty ? 'Reading context snapshot...' : '$_streamingContent█',
+              style: BsasTypography.monoDiagnostics.copyWith(
+                color: isDark ? Colors.white : Colors.black87,
+                height: 1.5,
+                fontSize: 13,
               ),
             ),
           ],
@@ -489,13 +531,13 @@ class _AiChatScreenState extends State<AiChatScreen> {
     final suggestions = [
       'Where am I?',
       'Explain my safety status',
-      'What is the system health?',
-      'Emergency evacuation steps',
+      'System health?',
+      'Evacuation steps',
     ];
 
     return Container(
-      height: 38,
-      margin: const EdgeInsets.only(bottom: BsasSpacing.xs),
+      height: 32,
+      margin: const EdgeInsets.only(bottom: BsasSpacing.sm),
       child: ListView.separated(
         padding: const EdgeInsets.symmetric(horizontal: BsasSpacing.screenMargin),
         scrollDirection: Axis.horizontal,
@@ -504,7 +546,12 @@ class _AiChatScreenState extends State<AiChatScreen> {
         itemBuilder: (context, idx) {
           final prompt = suggestions[idx];
           return ActionChip(
-            label: Text(prompt, style: const TextStyle(fontSize: 11)),
+            backgroundColor: BsasColors.darkSurface.withValues(alpha: 0.5),
+            side: const BorderSide(color: BsasColors.darkBorder),
+            label: Text(
+              prompt, 
+              style: BsasTypography.monoDiagnostics.copyWith(fontSize: 10, color: Colors.white70),
+            ),
             onPressed: () => _sendMessage(prompt),
           );
         },
@@ -531,42 +578,74 @@ class _AiChatScreenState extends State<AiChatScreen> {
         child: Row(
           children: [
             Expanded(
-              child: TextField(
-                controller: _controller,
-                enabled: !isGenerating,
-                textInputAction: TextInputAction.send,
-                onSubmitted: _sendMessage,
-                decoration: InputDecoration(
-                  hintText: isGenerating
-                      ? 'AI response generating...'
-                      : 'Ask field safety question...',
-                  isDense: true,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: BsasSpacing.md,
-                    vertical: BsasSpacing.sm,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: isDark ? Colors.black26 : Colors.black12,
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(color: isDark ? BsasColors.darkBorder : BsasColors.lightBorder),
+                ),
+                child: TextField(
+                  controller: _controller,
+                  enabled: !isGenerating,
+                  textInputAction: TextInputAction.send,
+                  onSubmitted: _sendMessage,
+                  style: BsasTypography.monoDiagnostics.copyWith(
+                    color: Colors.white,
+                    fontSize: 13,
+                  ),
+                  decoration: InputDecoration(
+                    prefixIcon: Icon(
+                      Icons.terminal,
+                      size: 16,
+                      color: isGenerating ? BsasColors.textLightMuted : BsasColors.safeGreen,
+                    ),
+                    hintText: isGenerating
+                        ? 'Processing request...'
+                        : 'Enter query parameter...',
+                    hintStyle: BsasTypography.monoDiagnostics.copyWith(
+                      color: BsasColors.textLightMuted,
+                      fontSize: 13,
+                    ),
+                    border: InputBorder.none,
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 12),
                   ),
                 ),
               ),
             ),
             const SizedBox(width: BsasSpacing.sm),
             if (isGenerating)
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: BsasColors.criticalRed,
-                  padding: const EdgeInsets.symmetric(horizontal: BsasSpacing.md),
-                  minimumSize: const Size(64, 42),
+              SizedBox(
+                height: 44,
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: BsasColors.criticalRed.withValues(alpha: 0.2),
+                    foregroundColor: BsasColors.criticalRed,
+                    side: const BorderSide(color: BsasColors.criticalRed),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                    padding: const EdgeInsets.symmetric(horizontal: BsasSpacing.md),
+                  ),
+                  icon: const Icon(Icons.stop_circle_outlined, size: 16),
+                  label: Text('HALT', style: BsasTypography.monoDiagnostics.copyWith(fontWeight: FontWeight.bold)),
+                  onPressed: _stopGeneration,
                 ),
-                onPressed: _stopGeneration,
-                child: const Text('STOP', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
               )
             else
-              IconButton.filled(
-                style: IconButton.styleFrom(
-                  backgroundColor: BsasColors.primaryBlue,
-                  foregroundColor: Colors.white,
+              SizedBox(
+                height: 44,
+                width: 44,
+                child: IconButton.filled(
+                  style: IconButton.styleFrom(
+                    backgroundColor: BsasColors.safeGreen.withValues(alpha: 0.2),
+                    foregroundColor: BsasColors.safeGreen,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(4),
+                      side: const BorderSide(color: BsasColors.safeGreen),
+                    ),
+                  ),
+                  icon: const Icon(Icons.send_rounded, size: 18),
+                  onPressed: () => _sendMessage(_controller.text),
                 ),
-                icon: const Icon(Icons.arrow_upward_rounded, size: 20),
-                onPressed: () => _sendMessage(_controller.text),
               ),
           ],
         ),

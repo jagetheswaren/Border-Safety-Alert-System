@@ -25,21 +25,21 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     OnboardingSlide(
       icon: Icons.radar_outlined,
       title: 'Real-Time Perimeter Safety',
-      subtitle: 'Deterministic GNSS Geofencing',
+      subtitle: 'DETERMINISTIC GNSS GEOFENCING',
       description:
           'BSAS continuously evaluates your physical coordinates against authorized border security polygons using point-in-polygon math. No fixed or simulated coordinates.',
     ),
     OnboardingSlide(
       icon: Icons.cloud_off_outlined,
       title: '100% Offline-First Architecture',
-      subtitle: 'Zero Cloud Dependency in the Field',
+      subtitle: 'ZERO CLOUD DEPENDENCY',
       description:
           'Boundary evaluation, on-device LSTM & Random Forest machine learning, offline vector/satellite maps, and SQLite persistence operate reliably with zero network connectivity.',
     ),
     OnboardingSlide(
       icon: Icons.shield_outlined,
       title: 'Multi-Modal Emergency Alerts',
-      subtitle: 'Audio, Haptics, TTS & Local AI',
+      subtitle: 'AUDIO, HAPTICS, TTS & LOCAL AI',
       description:
           'When boundary escalation occurs, BSAS triggers acoustic sirens, calibrated vibration pulses, native Android TTS voice alerts, and read-only local AI guidance.',
     ),
@@ -63,14 +63,20 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     final isDark = theme.brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: isDark ? BsasColors.darkBackground : BsasColors.lightBackground,
+      backgroundColor: BsasColors.background(isDark),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
           TextButton(
             onPressed: _finish,
-            child: const Text('SKIP', style: TextStyle(fontWeight: FontWeight.w700)),
+            child: Text(
+              'SKIP', 
+              style: BsasTypography.monospace.copyWith(
+                fontWeight: FontWeight.w700,
+                color: BsasColors.textSec(isDark),
+              ),
+            ),
           ),
           const SizedBox(width: BsasSpacing.xs),
         ],
@@ -80,13 +86,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           children: [
             const SizedBox(height: BsasSpacing.md),
             const BsasLogo(size: 72, animated: true),
-            const SizedBox(height: BsasSpacing.sm),
+            const SizedBox(height: BsasSpacing.md),
             Text(
               'BORDER SAFETY ALERT SYSTEM',
-              style: BsasTypography.caption.copyWith(
+              style: BsasTypography.monospace.copyWith(
                 fontWeight: FontWeight.w700,
-                letterSpacing: 1.5,
-                color: isDark ? BsasColors.textLightPrimary : BsasColors.textDarkPrimary,
+                letterSpacing: 2.0,
+                fontSize: 11,
+                color: BsasColors.text(isDark),
               ),
             ),
             const SizedBox(height: BsasSpacing.lg),
@@ -98,44 +105,55 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 itemBuilder: (context, idx) {
                   final slide = _slides[idx];
                   return Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: BsasSpacing.xxxl),
+                    padding: const EdgeInsets.symmetric(horizontal: BsasSpacing.xxl),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Container(
-                          padding: const EdgeInsets.all(BsasSpacing.xl),
+                          padding: const EdgeInsets.all(BsasSpacing.xxl),
                           decoration: BoxDecoration(
-                            color: BsasColors.primaryBlue.withValues(alpha: 0.12),
+                            color: (isDark ? BsasColors.radarCyan : BsasColors.primaryBlue).withValues(alpha: 0.1),
                             shape: BoxShape.circle,
+                            border: Border.all(color: (isDark ? BsasColors.radarCyan : BsasColors.primaryBlue).withValues(alpha: 0.3)),
                           ),
-                          child: Icon(slide.icon, size: 48, color: BsasColors.primaryBlue),
+                          child: Icon(slide.icon, size: 56, color: isDark ? BsasColors.radarCyan : BsasColors.primaryBlue),
                         ),
-                        const SizedBox(height: BsasSpacing.xl),
+                        const SizedBox(height: BsasSpacing.xxl),
                         Text(
                           slide.title,
-                          style: BsasTypography.display.copyWith(
-                            fontSize: 20,
-                            color: isDark ? BsasColors.textLightPrimary : BsasColors.textDarkPrimary,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: BsasSpacing.xs),
-                        Text(
-                          slide.subtitle,
-                          style: BsasTypography.sectionHeading.copyWith(
-                            fontSize: 12,
-                            color: BsasColors.primaryBlue,
+                          style: BsasTypography.heading.copyWith(
+                            fontSize: 22,
+                            color: BsasColors.text(isDark),
                           ),
                           textAlign: TextAlign.center,
                         ),
                         const SizedBox(height: BsasSpacing.md),
                         Text(
-                          slide.description,
-                          style: BsasTypography.body.copyWith(
-                            color: isDark ? BsasColors.textLightSecondary : BsasColors.textDarkSecondary,
-                            height: 1.5,
+                          slide.subtitle,
+                          style: BsasTypography.monospace.copyWith(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 1.0,
+                            color: isDark ? BsasColors.radarCyan : BsasColors.primaryBlue,
                           ),
                           textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: BsasSpacing.xl),
+                        Container(
+                          padding: const EdgeInsets.all(BsasSpacing.lg),
+                          decoration: BoxDecoration(
+                            color: BsasColors.card(isDark),
+                            borderRadius: BorderRadius.circular(BsasSpacing.cardRadius),
+                            border: Border.all(color: BsasColors.border(isDark)),
+                          ),
+                          child: Text(
+                            slide.description,
+                            style: BsasTypography.body.copyWith(
+                              color: BsasColors.textSec(isDark),
+                              height: 1.5,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
                         ),
                       ],
                     ),
@@ -155,19 +173,27 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   height: 8,
                   decoration: BoxDecoration(
                     color: _currentPage == idx
-                        ? BsasColors.primaryBlue
-                        : (isDark ? BsasColors.darkBorder : BsasColors.lightBorder),
+                        ? (isDark ? BsasColors.radarCyan : BsasColors.primaryBlue)
+                        : BsasColors.border(isDark),
                     borderRadius: BorderRadius.circular(BsasSpacing.pillRadius),
                   ),
                 ),
               ),
             ),
-            const SizedBox(height: BsasSpacing.xl),
+            const SizedBox(height: BsasSpacing.xxl),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: BsasSpacing.xxxl),
+              padding: const EdgeInsets.symmetric(horizontal: BsasSpacing.xxl),
               child: SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: BsasSpacing.lg),
+                    backgroundColor: isDark ? BsasColors.radarCyan : BsasColors.primaryBlue,
+                    foregroundColor: Colors.black,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(BsasSpacing.buttonRadius),
+                    ),
+                  ),
                   onPressed: () {
                     if (_currentPage < _slides.length - 1) {
                       _pageController.nextPage(
@@ -180,12 +206,16 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   },
                   child: Text(
                     _currentPage < _slides.length - 1 ? 'CONTINUE' : 'START MONITORING',
-                    style: const TextStyle(fontWeight: FontWeight.w700),
+                    style: BsasTypography.monospace.copyWith(
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.0,
+                      color: isDark ? Colors.black : Colors.white,
+                    ),
                   ),
                 ),
               ),
             ),
-            const SizedBox(height: BsasSpacing.xxl),
+            const SizedBox(height: BsasSpacing.xxxl),
           ],
         ),
       ),

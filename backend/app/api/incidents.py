@@ -7,7 +7,9 @@ from app.models.incident import Incident
 from app.schemas.incident import IncidentInDB, IncidentCreate
 from app.schemas.pagination import PaginatedResponse
 
-router = APIRouter()
+from app.api.auth import require_operator
+
+router = APIRouter(dependencies=[Depends(require_operator)])
 
 @router.get("/", response_model=PaginatedResponse[IncidentInDB])
 def read_incidents(

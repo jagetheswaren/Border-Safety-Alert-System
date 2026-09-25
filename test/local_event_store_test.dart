@@ -1,13 +1,20 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:border_safety_alert/database/app_database.dart';
 import 'package:border_safety_alert/services/local_event_store.dart';
 
 void main() {
   group('LocalEventStore', () {
     late LocalEventStore store;
 
-    setUp(() {
-      store = LocalEventStore();
+    late AppDatabase database;
+    setUp(() async {
+      sqfliteFfiInit();
+      database = await AppDatabase.inMemory(databaseFactoryFfi);
+      store = LocalEventStore(db: database.db);
+      await store.initialize();
     });
+    tearDown(() async { store.dispose(); await database.close(); });
 
     test('initial state has zero pending events', () {
       expect(store.pendingCount, 0);

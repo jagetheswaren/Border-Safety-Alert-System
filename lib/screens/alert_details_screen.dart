@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 import '../core/theme/bsas_colors.dart';
 import '../core/theme/bsas_spacing.dart';
@@ -6,8 +7,6 @@ import '../core/theme/bsas_typography.dart';
 import '../models/alert_severity.dart';
 import '../services/alert_service.dart';
 
-/// Redesigned Alert Details screen providing authoritative telemetry audit,
-/// hardware delivery verification, and immediate evacuation guidance.
 class AlertDetailsScreen extends StatelessWidget {
   const AlertDetailsScreen({
     super.key,
@@ -29,186 +28,321 @@ class AlertDetailsScreen extends StatelessWidget {
     final result = event.result;
     final isCritical = message.severity == AlertSeverity.critical;
     final time = event.timestamp ?? DateTime.now();
-    final timeStr =
-        '${time.year}-${time.month.toString().padLeft(2, '0')}-${time.day.toString().padLeft(2, '0')} '
-        '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}:${time.second.toString().padLeft(2, '0')}';
+    final timeStr = DateFormat('yyyy-MM-dd HH:mm:ss').format(time);
     final delivery = event.deliveryStatus;
     final severityColor = isCritical ? BsasColors.criticalRed : BsasColors.warningOrange;
 
     return Scaffold(
       key: const Key('screen-alert-details'),
-      appBar: AppBar(
-        title: const Text('Incident Report', style: BsasTypography.heading),
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(BsasSpacing.screenMargin),
-        children: [
-          // Header Card with Severity Banner
-          Container(
-            padding: BsasSpacing.cardInsets,
-            decoration: BoxDecoration(
-              color: isDark ? BsasColors.darkCard : BsasColors.lightCard,
-              borderRadius: BorderRadius.circular(BsasSpacing.cardRadius),
-              border: Border.all(color: severityColor, width: 1.5),
+      backgroundColor: BsasColors.background(isDark),
+      body: CustomScrollView(
+        slivers: [
+          SliverAppBar(
+            backgroundColor: BsasColors.surface(isDark),
+            pinned: true,
+            elevation: 0,
+            leading: IconButton(
+              icon: Icon(Icons.arrow_back, color: BsasColors.text(isDark)),
+              onPressed: () => Navigator.of(context).pop(),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            title: Row(
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: severityColor,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        message.severity.label.toUpperCase(),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 11,
-                          letterSpacing: 0.5,
-                        ),
+                Icon(
+                  isCritical ? Icons.warning_amber_rounded : Icons.info_outline,
+                  color: severityColor,
+                  size: 20,
+                ),
+                const SizedBox(width: BsasSpacing.sm),
+                Text(
+                  'INCIDENT REPORT',
+                  style: BsasTypography.heading.copyWith(
+                    color: BsasColors.text(isDark),
+                    letterSpacing: 1.2,
+                    fontSize: 16,
+                  ),
+                ),
+              ],
+            ),
+            bottom: PreferredSize(
+              preferredSize: const Size.fromHeight(1.0),
+              child: Container(
+                color: isDark ? BsasColors.darkBorder : BsasColors.lightBorder,
+                height: 1.0,
+              ),
+            ),
+          ),
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: BsasSpacing.lg, vertical: BsasSpacing.xl),
+            sliver: SliverList(
+              delegate: SliverChildListDelegate(
+                [
+                  // Header Card with Severity Banner
+                  Container(
+                    padding: const EdgeInsets.all(BsasSpacing.lg),
+                    decoration: BoxDecoration(
+                      color: severityColor.withValues(alpha: isDark ? 0.08 : 0.05),
+                      borderRadius: BorderRadius.circular(BsasSpacing.cardRadius),
+                      border: Border.all(
+                        color: severityColor.withValues(alpha: 0.3),
+                        width: 1.0,
                       ),
                     ),
-                    Text(timeStr, style: BsasTypography.monoDiagnostics.copyWith(fontSize: 11)),
-                  ],
-                ),
-                const SizedBox(height: BsasSpacing.md),
-                Text(
-                  message.title,
-                  style: BsasTypography.title.copyWith(fontSize: 16, fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: BsasSpacing.xs),
-                Text(
-                  message.message,
-                  style: BsasTypography.body.copyWith(
-                    color: isDark ? BsasColors.textLightSecondary : BsasColors.textDarkSecondary,
-                    height: 1.45,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: BsasSpacing.sm, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: severityColor.withValues(alpha: 0.2),
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(color: severityColor.withValues(alpha: 0.4)),
+                              ),
+                              child: Text(
+                                message.severity.label.toUpperCase(),
+                                style: BsasTypography.monospace.copyWith(
+                                  color: severityColor,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 11,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                            ),
+                            Text(
+                              timeStr,
+                              style: BsasTypography.monospace.copyWith(
+                                fontSize: 11,
+                                color: BsasColors.textSec(isDark),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: BsasSpacing.md),
+                        Text(
+                          message.title,
+                          style: BsasTypography.heading.copyWith(
+                            fontSize: 16,
+                            color: BsasColors.text(isDark),
+                          ),
+                        ),
+                        const SizedBox(height: BsasSpacing.sm),
+                        Text(
+                          message.message,
+                          style: BsasTypography.body.copyWith(
+                            color: BsasColors.text(isDark),
+                            height: 1.45,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: BsasSpacing.lg),
+                  const SizedBox(height: BsasSpacing.xl),
 
-          // Geospatial Context Section
-          Text(
-            'GEOSPATIAL INCIDENT TELEMETRY',
-            style: BsasTypography.sectionHeading.copyWith(
-              color: BsasColors.primaryBlue,
-              fontSize: 12,
-            ),
-          ),
-          const SizedBox(height: BsasSpacing.sm),
-          Container(
-            decoration: BoxDecoration(
-              color: isDark ? BsasColors.darkCard : BsasColors.lightCard,
-              borderRadius: BorderRadius.circular(BsasSpacing.cardRadius),
-              border: Border.all(color: isDark ? BsasColors.darkBorder : BsasColors.lightBorder),
-            ),
-            child: Column(
-              children: [
-                _tile(
-                  icon: Icons.shield_outlined,
-                  title: 'Geofence Assessment',
-                  trailing: result.state.name.toUpperCase(),
-                  trailingColor: severityColor,
-                ),
-                const Divider(height: 1),
-                _tile(
-                  icon: Icons.near_me_outlined,
-                  title: 'Sector / Perimeter',
-                  trailing: result.nearestBoundary?.name ?? 'Perimeter Buffer',
-                ),
-                const Divider(height: 1),
-                _tile(
-                  icon: Icons.straighten,
-                  title: 'Distance to Demarcation',
-                  trailing: result.distanceToBoundaryMeters != null
-                      ? '${result.distanceToBoundaryMeters!.toStringAsFixed(1)} m'
-                      : 'Inside Zone',
-                ),
-                if (result.directionToBoundaryDegrees != null) ...[
-                  const Divider(height: 1),
-                  _tile(
-                    icon: Icons.navigation_outlined,
-                    title: 'Perimeter Bearing',
-                    trailing: '${result.directionToBoundaryDegrees!.toStringAsFixed(0)}°',
+                  // Geospatial Context Section
+                  _sectionHeader('GEOSPATIAL INCIDENT TELEMETRY', isDark),
+                  _card(
+                    isDark: isDark,
+                    children: [
+                      _tile(
+                        isDark: isDark,
+                        icon: Icons.shield_outlined,
+                        title: 'GEOFENCE ASSESSMENT',
+                        trailing: result.state.name.toUpperCase(),
+                        trailingColor: severityColor,
+                      ),
+                      Divider(height: 1, color: BsasColors.border(isDark)),
+                      _tile(
+                        isDark: isDark,
+                        icon: Icons.near_me_outlined,
+                        title: 'SECTOR / PERIMETER',
+                        trailing: result.nearestBoundary?.name ?? 'PERIMETER BUFFER',
+                      ),
+                      Divider(height: 1, color: BsasColors.border(isDark)),
+                      _tile(
+                        isDark: isDark,
+                        icon: Icons.straighten,
+                        title: 'DISTANCE TO DEMARCATION',
+                        trailing: result.distanceToBoundaryMeters != null
+                            ? '${result.distanceToBoundaryMeters!.toStringAsFixed(1)} M'
+                            : 'INSIDE ZONE',
+                      ),
+                      if (result.directionToBoundaryDegrees != null) ...[
+                        Divider(height: 1, color: BsasColors.border(isDark)),
+                        _tile(
+                          isDark: isDark,
+                          icon: Icons.navigation_outlined,
+                          title: 'PERIMETER BEARING',
+                          trailing: '${result.directionToBoundaryDegrees!.toStringAsFixed(0)}°',
+                        ),
+                      ],
+                    ],
                   ),
+                  const SizedBox(height: BsasSpacing.xl),
+
+                  // Hardware Dispatch Audit Section
+                  _sectionHeader('HARDWARE DISPATCH VERIFICATION', isDark),
+                  _card(
+                    isDark: isDark,
+                    children: [
+                      _dispatchTile(
+                        isDark: isDark,
+                        channel: 'ACOUSTIC SIREN (AUDIO)',
+                        dispatched: delivery.soundPlayed,
+                      ),
+                      Divider(height: 1, color: BsasColors.border(isDark)),
+                      _dispatchTile(
+                        isDark: isDark,
+                        channel: 'TEXT-TO-SPEECH VOICE (TTS)',
+                        dispatched: delivery.voiceSpoken,
+                      ),
+                      Divider(height: 1, color: BsasColors.border(isDark)),
+                      _dispatchTile(
+                        isDark: isDark,
+                        channel: 'HAPTIC TACTILE PULSE',
+                        dispatched: delivery.vibrated,
+                      ),
+                      Divider(height: 1, color: BsasColors.border(isDark)),
+                      _dispatchTile(
+                        isDark: isDark,
+                        channel: 'ANDROID SYSTEM NOTIFICATION',
+                        dispatched: delivery.notificationPosted,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: BsasSpacing.xxl),
+
+                  // Emergency Actions
+                  Row(
+                    children: [
+                      if (onViewOnMap != null)
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: BsasSpacing.md),
+                              side: BorderSide(color: BsasColors.radarCyan.withValues(alpha: 0.5)),
+                              backgroundColor: BsasColors.radarCyan.withValues(alpha: 0.05),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(BsasSpacing.buttonRadius),
+                              ),
+                            ),
+                            onPressed: () {
+                              Navigator.pop(context);
+                              onViewOnMap!();
+                            },
+                            icon: const Icon(Icons.map_outlined, color: BsasColors.radarCyan, size: 20),
+                            label: Text(
+                              'VIEW ON MAP',
+                              style: BsasTypography.monospace.copyWith(
+                                color: BsasColors.radarCyan,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0.5,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                        ),
+                      if (onViewOnMap != null && onSafeRoute != null)
+                        const SizedBox(width: BsasSpacing.md),
+                      if (onSafeRoute != null)
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: BsasSpacing.md),
+                              backgroundColor: isCritical ? BsasColors.criticalRed : BsasColors.warningOrange,
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(BsasSpacing.buttonRadius),
+                              ),
+                            ),
+                            onPressed: () {
+                              Navigator.pop(context);
+                              onSafeRoute!();
+                            },
+                            icon: const Icon(Icons.alt_route_rounded, size: 20),
+                            label: Text(
+                              'SAFE ESCAPE ROUTE',
+                              style: BsasTypography.monospace.copyWith(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0.5,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: BsasSpacing.xl),
                 ],
-              ],
+              ),
             ),
           ),
-          const SizedBox(height: BsasSpacing.lg),
-
-          // Hardware Dispatch Audit Section
-          Text(
-            'HARDWARE DISPATCH VERIFICATION',
-            style: BsasTypography.sectionHeading.copyWith(
-              color: BsasColors.primaryBlue,
-              fontSize: 12,
-            ),
-          ),
-          const SizedBox(height: BsasSpacing.sm),
-          Container(
-            decoration: BoxDecoration(
-              color: isDark ? BsasColors.darkCard : BsasColors.lightCard,
-              borderRadius: BorderRadius.circular(BsasSpacing.cardRadius),
-              border: Border.all(color: isDark ? BsasColors.darkBorder : BsasColors.lightBorder),
-            ),
-            child: Column(
-              children: [
-                _dispatchTile('Acoustic Siren (Audio)', delivery.soundPlayed),
-                const Divider(height: 1),
-                _dispatchTile('Text-to-Speech Voice (TTS)', delivery.voiceSpoken),
-                const Divider(height: 1),
-                _dispatchTile('Haptic Tactile Pulse', delivery.vibrated),
-                const Divider(height: 1),
-                _dispatchTile('Android System Notification', delivery.notificationPosted),
-              ],
-            ),
-          ),
-          const SizedBox(height: BsasSpacing.xl),
-
-          // Emergency Actions
-          Row(
-            children: [
-              if (onViewOnMap != null)
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () {
-                      Navigator.pop(context);
-                      onViewOnMap!();
-                    },
-                    icon: const Icon(Icons.map_outlined, size: 18),
-                    label: const Text('VIEW ON MAP'),
-                  ),
-                ),
-              if (onViewOnMap != null && onSafeRoute != null)
-                const SizedBox(width: BsasSpacing.sm),
-              if (onSafeRoute != null)
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () {
-                      Navigator.pop(context);
-                      onSafeRoute!();
-                    },
-                    icon: const Icon(Icons.alt_route_rounded, size: 18),
-                    label: const Text('SAFE ESCAPE ROUTE'),
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: BsasSpacing.md),
         ],
       ),
     );
   }
 
+  Widget _sectionHeader(String title, bool isDark) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: BsasSpacing.md, left: BsasSpacing.xs),
+      child: Row(
+        children: [
+          Container(
+            width: 4,
+            height: 16,
+            color: isDark ? BsasColors.radarCyan : BsasColors.primaryBlue,
+          ),
+          const SizedBox(width: BsasSpacing.sm),
+          Text(
+            title,
+            style: BsasTypography.heading.copyWith(
+              color: isDark ? BsasColors.text(isDark) : BsasColors.primaryBlue,
+              fontSize: 13,
+              letterSpacing: 1.2,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _card({required bool isDark, required List<Widget> children}) {
+    return Container(
+      decoration: BoxDecoration(
+        color: BsasColors.card(isDark),
+        borderRadius: BorderRadius.circular(BsasSpacing.cardRadius),
+        border: Border.all(color: BsasColors.border(isDark), width: 1.0),
+        boxShadow: isDark
+            ? [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.2),
+                  blurRadius: 8,
+                  offset: const Offset(0, 4),
+                )
+              ]
+            : [
+                BoxShadow(
+                  color: BsasColors.lightBorder,
+                  blurRadius: 8,
+                  offset: const Offset(0, 4),
+                )
+              ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(BsasSpacing.cardRadius),
+        child: Column(
+          children: children,
+        ),
+      ),
+    );
+  }
+
   Widget _tile({
+    required bool isDark,
     required IconData icon,
     required String title,
     required String trailing,
@@ -218,15 +352,24 @@ class AlertDetailsScreen extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: BsasSpacing.md, vertical: BsasSpacing.md),
       child: Row(
         children: [
-          Icon(icon, size: 20, color: BsasColors.primaryBlue),
+          Icon(icon, size: 18, color: isDark ? BsasColors.radarCyan : BsasColors.primaryBlue),
           const SizedBox(width: BsasSpacing.sm),
-          Expanded(child: Text(title, style: BsasTypography.bodyMuted)),
+          Expanded(
+            child: Text(
+              title,
+              style: BsasTypography.monospace.copyWith(
+                color: BsasColors.textSec(isDark),
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
           Text(
             trailing,
-            style: BsasTypography.monoDiagnostics.copyWith(
-              fontSize: 12,
+            style: BsasTypography.monospace.copyWith(
+              fontSize: 11,
               fontWeight: FontWeight.w700,
-              color: trailingColor,
+              color: trailingColor ?? BsasColors.text(isDark),
             ),
           ),
         ],
@@ -234,13 +377,24 @@ class AlertDetailsScreen extends StatelessWidget {
     );
   }
 
-  Widget _dispatchTile(String channel, bool dispatched) {
+  Widget _dispatchTile({
+    required bool isDark,
+    required String channel,
+    required bool dispatched,
+  }) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: BsasSpacing.md, vertical: BsasSpacing.md),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(channel, style: BsasTypography.body.copyWith(fontSize: 13)),
+          Text(
+            channel,
+            style: BsasTypography.monospace.copyWith(
+              color: BsasColors.text(isDark),
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
           Row(
             children: [
               Icon(
@@ -248,12 +402,12 @@ class AlertDetailsScreen extends StatelessWidget {
                 size: 16,
                 color: dispatched ? BsasColors.safeGreen : BsasColors.offlineSteel,
               ),
-              const SizedBox(width: 4),
+              const SizedBox(width: 6),
               Text(
                 dispatched ? 'DISPATCHED' : 'SUPPRESSED',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
+                style: BsasTypography.monospace.copyWith(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
                   color: dispatched ? BsasColors.safeGreen : BsasColors.offlineSteel,
                 ),
               ),

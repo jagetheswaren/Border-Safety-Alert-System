@@ -32,7 +32,7 @@ class BoundaryCountCard extends StatelessWidget {
           subtitle = 'No boundary data returned.';
         } else {
           title = 'Offline boundaries: ${data.count}';
-          subtitle = data.allDemo
+          subtitle = data.count == 0 ? 'No verified safety boundary data available' : data.allDemo
               ? 'Demo data — non-authoritative'
               : 'Local boundary dataset';
         }

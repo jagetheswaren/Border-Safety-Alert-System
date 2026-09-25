@@ -6,15 +6,15 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 from fastapi.testclient import TestClient
 from app.main import app
 
-client = TestClient(app)
 
-def test_read_health():
+
+def test_read_health(client):
     response = client.get("/health")
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
     assert response.json()["phase"] == 2
 
-def test_create_and_authenticate_user():
+def test_create_and_authenticate_user(client):
     unique_email = f"test_{uuid.uuid4().hex[:8]}@example.com"
     raw_password = "SecurePassword123!"
 
@@ -54,7 +54,7 @@ def test_create_and_authenticate_user():
     )
     assert wrong_login.status_code == 400
 
-def test_duplicate_user_rejected():
+def test_duplicate_user_rejected(client):
     unique_email = f"dup_{uuid.uuid4().hex[:8]}@example.com"
     client.post(
         "/api/v1/users/",
@@ -66,16 +66,16 @@ def test_duplicate_user_rejected():
     )
     assert res.status_code == 400
 
-def test_geofence_check():
+def test_geofence_check(client):
     response = client.post(
         "/api/v1/geofence/check",
         json={"latitude": 34.0, "longitude": -118.0, "device_id": "dev-123"}
     )
     assert response.status_code == 200
     data = response.json()
-    assert data["risk"] == "SAFE"
+    assert data["risk"] == "UNKNOWN"
 
-def test_dashboard_stats():
+def test_dashboard_stats(client):
     response = client.get("/api/v1/dashboard/stats")
     assert response.status_code == 200
     data = response.json()

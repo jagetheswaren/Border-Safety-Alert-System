@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'model_manager.dart';
+import 'native_gguf_runtime.dart';
 
 /// Immutable read-only sensor and safety context snapshot provided to the AI.
 ///
@@ -55,20 +56,22 @@ enum ChatBackendMode {
 
 /// Service handling local AI interactions for BSAS.
 ///
-/// Supports:
-/// - Real Ollama neural streaming during laptop development / network mode.
-/// - Local on-device Qwen3-0.6B GGUF inference in offline field mode.
-/// - Clear, honest unavailable status when model binary is not loaded.
-/// - Strict read-only safety boundary isolation.
+/// Architecture:
+/// - Development mode (Laptop): Real Ollama neural streaming over localhost:11434.
+/// - Production mode (Android): Native on-device Qwen3-0.6B GGUF inference via llama.cpp.
+/// - Absolute Rule: NO fake keyword engine, NO canned responses, NO simulated delays.
+///   If neither runtime is available, yields an honest diagnostic error.
 class LocalChatService extends ChangeNotifier {
   LocalChatService({
     required this.modelManager,
+    NativeGgufRuntime? nativeRuntime,
     this.ollamaBaseUrl = 'http://127.0.0.1:11434',
     this.ollamaModel = 'qwen2.5:0.5b',
     this.backendMode = ChatBackendMode.auto,
-  });
+  }) : nativeRuntime = nativeRuntime ?? NativeGgufRuntime();
 
   final ModelManager modelManager;
+  final NativeGgufRuntime nativeRuntime;
   final String ollamaBaseUrl;
   final String ollamaModel;
   ChatBackendMode backendMode;
@@ -135,15 +138,9 @@ Important rules:
     notifyListeners();
 
     try {
-      final lower = userPrompt.toLowerCase().trim();
-      final isTelemetryLookup = lower.contains('where am i') ||
-          lower.contains('what is the system health') ||
-          lower.contains('status and risk engine evaluation');
-
-      // 1. If not a specific telemetry lookup, use Ollama GPU bridge (Laptop development mode)
-      bool useOllama = (backendMode == ChatBackendMode.ollama || backendMode == ChatBackendMode.auto) &&
-          !isTelemetryLookup;
-      if (useOllama) {
+      // 1. Laptop Development Path: check for active Ollama server
+      bool tryOllama = backendMode == ChatBackendMode.ollama || backendMode == ChatBackendMode.auto;
+      if (tryOllama) {
         final available = await checkOllamaHealth();
         if (available) {
           bool streamedAny = false;
@@ -162,29 +159,33 @@ Important rules:
         }
       }
 
-      // 2. On-Device GGUF Inference / Transparent Local Status
+      // 2. Android On-Device GGUF Path: Native llama.cpp inference
+      await nativeRuntime.loadNativeLibrary();
+
       if (!modelManager.isModelLoaded) {
         try {
           await modelManager.loadModel();
         } catch (_) {}
       }
 
-      // Build real stream based on loaded runtime state or honest status
-      final responseText = _buildExplanationOrStatus(userPrompt, contextSnapshot);
-      final words = responseText.split(' ');
-
-      for (int i = 0; i < words.length; i++) {
-        if (_cancelCompleter != null && _cancelCompleter!.isCompleted) {
-          break;
+      if (modelManager.isModelLoaded && nativeRuntime.isAvailable) {
+        // Native model is loaded and native library is bound
+        final promptWithContext = _buildPrompt(userPrompt, contextSnapshot);
+        final path = await modelManager.modelFilePath;
+        await for (final token in nativeRuntime.generateTokens(
+          modelPath: path,
+          prompt: promptWithContext,
+        )) {
+          if (_cancelCompleter != null && _cancelCompleter!.isCompleted) break;
+          yield token;
         }
-
-        final word = words[i];
-        final token = i == words.length - 1 ? word : '$word ';
-        yield token;
-
-        // Realistic streaming rate (~25-30 tokens/sec)
-        await Future.delayed(const Duration(milliseconds: 30));
+        return;
       }
+
+      // 3. Honest Status: Neither Ollama nor Native GGUF is available
+      // Strictly NO fake keyword responses or artificial delays.
+      yield _buildUnavailableNotice(contextSnapshot);
+
     } finally {
       _isGenerating = false;
       modelManager.setGenerating(false);
@@ -204,6 +205,8 @@ Geofence State: ${ctx.zoneState}
 GPS Available: ${ctx.gpsAvailable}
 Coordinates: ${ctx.latitude?.toStringAsFixed(6) ?? "N/A"}, ${ctx.longitude?.toStringAsFixed(6) ?? "N/A"}
 Accuracy: ±${ctx.accuracyM?.toStringAsFixed(1) ?? "N/A"} m
+Speed: ${ctx.speedMps != null ? "${(ctx.speedMps! * 3.6).toStringAsFixed(1)} km/h" : "N/A"}
+Bearing: ${ctx.bearingDeg != null ? "${ctx.bearingDeg!.toStringAsFixed(0)}°" : "N/A"}
 Active Alerts: ${ctx.activeAlertCount}
 Offline Mode: ${ctx.isOffline}
 ''';
@@ -244,63 +247,36 @@ Offline Mode: ${ctx.isOffline}
     client.close();
   }
 
-  String _buildExplanationOrStatus(String prompt, SafetyContextSnapshot ctx) {
-    final lower = prompt.toLowerCase();
+  String _buildPrompt(String userPrompt, SafetyContextSnapshot ctx) {
+    return '''
+System: $systemPrompt
+Context:
+Official Risk State: ${ctx.riskState}
+Geofence State: ${ctx.zoneState}
+GPS Available: ${ctx.gpsAvailable}
+Coordinates: ${ctx.latitude?.toStringAsFixed(6) ?? "N/A"}, ${ctx.longitude?.toStringAsFixed(6) ?? "N/A"}
+Active Alerts: ${ctx.activeAlertCount}
+User: $userPrompt
+Assistant:''';
+  }
 
-    // Telemetry and GNSS status
-    if (lower.contains('where am i') || lower.contains('gps') || lower.contains('location') || lower.contains('coordinates')) {
-      if (ctx.gpsAvailable && ctx.latitude != null && ctx.longitude != null) {
-        return 'GNSS Fix Verified:\n'
-            '• Latitude: ${ctx.latitude!.toStringAsFixed(6)}\n'
-            '• Longitude: ${ctx.longitude!.toStringAsFixed(6)}\n'
-            '• Accuracy: ±${ctx.accuracyM?.toStringAsFixed(1) ?? "15"} m\n'
-            '• Speed: ${ctx.speedMps != null ? "${ctx.speedMps!.toStringAsFixed(1)} m/s" : "0.0 m/s"}\n'
-            '• Bearing: ${ctx.bearingDeg != null ? "${ctx.bearingDeg!.toStringAsFixed(0)}°" : "N/A"}\n'
-            'Telemetry validated by on-device GpsService.';
-      } else {
-        return 'GPS position fix is currently unavailable. Waiting for satellite lock with clear sky view.';
-      }
-    }
+  String _buildUnavailableNotice(SafetyContextSnapshot ctx) {
+    final modelState = modelManager.state.name.toUpperCase();
+    final modelDiag = modelManager.diagnostics.status;
+    final lat = ctx.latitude?.toStringAsFixed(6) ?? 'N/A';
+    final lon = ctx.longitude?.toStringAsFixed(6) ?? 'N/A';
 
-    // Safety and Risk Engine explanation
-    if (lower.contains('safe') || lower.contains('status') || lower.contains('why') || lower.contains('evaluation')) {
-      return 'Authoritative BSAS Safety State: ${ctx.riskState}.\n\n'
-          'Evaluated against boundary zone: ${ctx.zoneState}. '
-          'GPS status: ${ctx.gpsAvailable ? "Active Fix" : "No Fix"}. '
-          'Note: This status is evaluated authoritatively by BSAS\'s deterministic safety engine and on-device LSTM/Random Forest models; AI assistant provides advisory explanation only.';
-    }
-
-    // Geofence & Boundary conditions
-    if (lower.contains('zone') || lower.contains('geofence') || lower.contains('boundary')) {
-      return 'Active Geofence Sector: ${ctx.zoneState}. '
-          'BSAS continuously tests physical coordinates against local boundary polygons using point-in-polygon and minimum distance calculations.';
-    }
-
-    // System Diagnostics & Health
-    if (lower.contains('health') || lower.contains('diagnostic') || lower.contains('system')) {
-      final isLoaded = modelManager.isModelLoaded;
-      return 'BSAS System Health Diagnostics:\n'
-          '• GPS Receiver: ${ctx.gpsAvailable ? "Locked" : "Searching"}\n'
-          '• Safety Engine: Active (Deterministic)\n'
-          '• ML Model: Fused (LSTM + Random Forest)\n'
-          '• Local AI: ${isLoaded ? "Loaded (Qwen3-0.6B GGUF)" : "Pending Model Installation"}\n'
-          '• Operating Mode: ${ctx.isOffline ? "Offline Field Mode" : "Online Connected"}\n'
-          'All calculations are performed on-device.';
-    }
-
-    // General field advisory
-    if (modelManager.isModelLoaded) {
-      return 'I am the BSAS Local Safety Assistant running offline via Qwen3-0.6B on this device. '
-          'Your current safety status is ${ctx.riskState} in ${ctx.zoneState}. How can I assist you with field navigation or protocol guidelines?';
-    } else {
-      return '[OFFLINE AI ADVISORY]\n'
-          'Local Qwen3 GGUF model is not loaded (Status: ${modelManager.state.name.toUpperCase()}).\n'
-          'Current telemetry snapshot:\n'
-          '• Safety State: ${ctx.riskState}\n'
-          '• Geofence: ${ctx.zoneState}\n'
-          '• GPS Available: ${ctx.gpsAvailable}\n'
-          '• Coordinates: ${ctx.latitude?.toStringAsFixed(6) ?? "N/A"}, ${ctx.longitude?.toStringAsFixed(6) ?? "N/A"}\n'
-          'Install Qwen3-0.6B-Q4_0.gguf in models/qwen/ for full on-device generative responses.';
-    }
+    return '⚠️ [BSAS LOCAL AI: NOT_CONFIGURED]\n\n'
+        'On-device neural inference requires the Qwen3 GGUF model and native runtime:\n'
+        '• Model File: Qwen3-0.6B-Q4_0.gguf (~429 MB)\n'
+        '• Model State: $modelState ($modelDiag)\n'
+        '• Native Runtime: llama.cpp (${nativeRuntime.unavailableReason ?? "libllama.so missing"})\n'
+        '• Laptop Dev Mode: Ollama server not detected at $ollamaBaseUrl\n\n'
+        '🛡️ Current Authoritative Telemetry (from Risk Engine & GPS):\n'
+        '• Official State: ${ctx.riskState}\n'
+        '• Geofence Zone: ${ctx.zoneState}\n'
+        '• GNSS Coordinates: $lat° N, $lon° E\n'
+        '• Active Alerts: ${ctx.activeAlertCount}\n\n'
+        'Notice: In strict compliance with BSAS safety standards, simulated keyword responses are disabled. Install the model package to activate full local conversational intelligence.';
   }
 }

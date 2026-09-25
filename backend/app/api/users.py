@@ -6,7 +6,9 @@ from app.models.user import User
 from app.schemas.user import UserInDB, UserCreate
 from app.security import get_password_hash
 
-router = APIRouter()
+from app.api.auth import require_admin
+
+router = APIRouter(dependencies=[Depends(require_admin)])
 
 @router.get("/", response_model=List[UserInDB])
 def read_users(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):

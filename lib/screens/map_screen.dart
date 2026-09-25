@@ -90,20 +90,7 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
 
     return Scaffold(
       key: const Key('screen-map'),
-      appBar: AppBar(
-        title: const Text('Offline Field Map', style: BsasTypography.headline),
-        backgroundColor: BsasColors.darkSurface,
-        actions: [
-          StatusBadge(
-            label: _offlineMap.isReady ? 'OFFLINE READY' : 'DOWNLOADING',
-            state: _offlineMap.isReady ? StatusState.ready : StatusState.loading,
-          ),
-          IconButton(
-            icon: Icon(_showDetails ? Icons.expand_less : Icons.info_outline),
-            onPressed: () => setState(() => _showDetails = !_showDetails),
-          ),
-        ],
-      ),
+      extendBodyBehindAppBar: true,
       body: Stack(
         children: [
           // 1. Interactive FlutterMap with local tile fallback & vector layers
@@ -247,40 +234,127 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
 
           // 2. Map HUD / Top Status Bar
           Positioned(
-            top: 12,
-            left: 12,
-            right: 12,
+            top: MediaQuery.paddingOf(context).top + 16,
+            left: 16,
+            right: 16,
             child: Column(
               mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Card(
-                  key: const Key('map-gps-line'),
-                  color: BsasColors.darkSurface.withValues(alpha: 0.92),
-                  elevation: 4,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    side: const BorderSide(color: BsasColors.darkBorder),
-                  ),
-                  child: ListTile(
-                    dense: true,
-                    leading: GpsStatusChip(state: live.fix),
-                    title: Text(
-                      fix == null
-                          ? (live.message ?? 'Searching GPS fix…')
-                          : '${fix.latitude.toStringAsFixed(6)}, ${fix.longitude.toStringAsFixed(6)} (±${accuracy.toStringAsFixed(0)}m)',
-                      style: BsasTypography.monoDiagnostics.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w600,
+                // Top Action Bar
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: BsasColors.darkSurface.withValues(alpha: 0.95),
+                        borderRadius: BorderRadius.circular(24),
+                        border: Border.all(color: BsasColors.darkBorder),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.3),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.map_outlined, color: Colors.white, size: 18),
+                          const SizedBox(width: 8),
+                          Text(
+                            'TACTICAL MAP',
+                            style: BsasTypography.caption.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 1.2,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    subtitle: Text(
-                      'Zone: ${widget.geoFence.state.name.toUpperCase()} • Speed: ${fix?.speed != null ? "${fix!.speed!.toStringAsFixed(1)} m/s" : "0.0 m/s"}',
-                      style: BsasTypography.caption.copyWith(color: BsasColors.textSecondary),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        StatusBadge(
+                          label: _offlineMap.isReady ? 'OFFLINE READY' : 'DOWNLOADING',
+                          state: _offlineMap.isReady ? StatusState.ready : StatusState.loading,
+                        ),
+                        const SizedBox(width: 8),
+                        GestureDetector(
+                          onTap: () => setState(() => _showDetails = !_showDetails),
+                          child: Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: BsasColors.darkSurface.withValues(alpha: 0.95),
+                              shape: BoxShape.circle,
+                              border: Border.all(color: BsasColors.darkBorder),
+                            ),
+                            child: Icon(
+                              _showDetails ? Icons.expand_less : Icons.expand_more,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                // Telemetry Card
+                Container(
+                  key: const Key('map-gps-line'),
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: BsasColors.darkSurface.withValues(alpha: 0.95),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: fix != null ? BsasColors.radarCyan.withValues(alpha: 0.3) : BsasColors.darkBorder,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.3),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      GpsStatusChip(state: live.fix),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              fix == null
+                                  ? (live.message ?? 'Acquiring GNSS Lock...')
+                                  : '${fix.latitude.toStringAsFixed(5)}°, ${fix.longitude.toStringAsFixed(5)}°',
+                              style: BsasTypography.monoDiagnostics.copyWith(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              fix == null
+                                  ? 'Awaiting coordinates'
+                                  : 'ACCURACY: ±${accuracy.toStringAsFixed(0)}m  •  SPD: ${fix.speed?.toStringAsFixed(1) ?? "0.0"} m/s',
+                              style: BsasTypography.caption.copyWith(color: BsasColors.textSecondary),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 if (_showDetails) ...[
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 8),
                   GeoFenceStatusCard(result: widget.geoFence),
                 ],
               ],
@@ -293,92 +367,106 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
             child: SizedBox(key: Key('map-placeholder')),
           ),
 
-          // 3. Floating Control Bar (Zoom In/Out, Recenter, Follow, Tracking)
+          // 3. Floating Control Bar (Zoom In/Out, Recenter, Follow, Tracking, Layers)
           Positioned(
-            bottom: 20,
+            bottom: MediaQuery.paddingOf(context).bottom + 20,
             right: 16,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Zoom in
-                FloatingActionButton.small(
-                  heroTag: 'btn-zoom-in',
-                  backgroundColor: BsasColors.darkSurface,
-                  onPressed: () {
-                    final nextZoom = (_mapController.camera.zoom + 1.0).clamp(6.0, 18.0);
-                    _mapController.move(_mapController.camera.center, nextZoom);
-                  },
-                  child: const Icon(Icons.add, color: Colors.white),
-                ),
-                const SizedBox(height: 8),
-
-                // Zoom out
-                FloatingActionButton.small(
-                  heroTag: 'btn-zoom-out',
-                  backgroundColor: BsasColors.darkSurface,
-                  onPressed: () {
-                    final nextZoom = (_mapController.camera.zoom - 1.0).clamp(6.0, 18.0);
-                    _mapController.move(_mapController.camera.center, nextZoom);
-                  },
-                  child: const Icon(Icons.remove, color: Colors.white),
-                ),
-                const SizedBox(height: 8),
-
-                // Tracking toggle
-                ListenableBuilder(
-                  listenable: _tracking,
-                  builder: (context, _) {
-                    return FloatingActionButton.small(
-                      heroTag: 'btn-track',
-                      backgroundColor: _tracking.isTracking
-                          ? BsasColors.criticalRed
-                          : BsasColors.darkSurface,
-                      onPressed: () {
-                        if (_tracking.isTracking) {
-                          _tracking.stopTracking();
-                        } else {
-                          _tracking.startTracking();
-                        }
-                      },
-                      child: Icon(
-                        _tracking.isTracking ? Icons.stop : Icons.fiber_manual_record,
-                        color: _tracking.isTracking ? Colors.white : BsasColors.radarCyan,
+                // Zoom Controls Pill
+                Container(
+                  decoration: BoxDecoration(
+                    color: BsasColors.darkSurface.withValues(alpha: 0.95),
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(color: BsasColors.darkBorder),
+                  ),
+                  child: Column(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.add, color: Colors.white, size: 20),
+                        onPressed: () {
+                          final nextZoom = (_mapController.camera.zoom + 1.0).clamp(6.0, 18.0);
+                          _mapController.move(_mapController.camera.center, nextZoom);
+                        },
                       ),
-                    );
-                  },
-                ),
-                const SizedBox(height: 8),
-
-                // Follow toggle
-                FloatingActionButton.small(
-                  heroTag: 'btn-follow',
-                  backgroundColor: _followUser ? BsasColors.radarCyan : BsasColors.darkSurface,
-                  onPressed: () {
-                    setState(() => _followUser = !_followUser);
-                    if (_followUser) _recenter();
-                  },
-                  child: Icon(
-                    Icons.navigation_outlined,
-                    color: _followUser ? Colors.black : Colors.white,
+                      Container(width: 32, height: 1, color: BsasColors.darkBorder),
+                      IconButton(
+                        icon: const Icon(Icons.remove, color: Colors.white, size: 20),
+                        onPressed: () {
+                          final nextZoom = (_mapController.camera.zoom - 1.0).clamp(6.0, 18.0);
+                          _mapController.move(_mapController.camera.center, nextZoom);
+                        },
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 8),
-
-                // Layer selection button
-                FloatingActionButton.small(
-                  heroTag: 'btn-layers',
-                  backgroundColor: BsasColors.darkSurface,
-                  onPressed: _showLayerSheet,
-                  child: const Icon(Icons.layers, color: BsasColors.radarCyan),
+                const SizedBox(height: 12),
+                
+                // Action Controls Pill
+                Container(
+                  decoration: BoxDecoration(
+                    color: BsasColors.darkSurface.withValues(alpha: 0.95),
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(color: BsasColors.darkBorder),
+                  ),
+                  child: Column(
+                    children: [
+                      ListenableBuilder(
+                        listenable: _tracking,
+                        builder: (context, _) {
+                          return IconButton(
+                            icon: Icon(
+                              _tracking.isTracking ? Icons.stop_rounded : Icons.radio_button_checked,
+                              color: _tracking.isTracking ? BsasColors.criticalRed : BsasColors.radarCyan,
+                              size: 22,
+                            ),
+                            onPressed: () {
+                              if (_tracking.isTracking) {
+                                _tracking.stopTracking();
+                              } else {
+                                _tracking.startTracking();
+                              }
+                            },
+                          );
+                        },
+                      ),
+                      Container(width: 32, height: 1, color: BsasColors.darkBorder),
+                      IconButton(
+                        icon: Icon(
+                          Icons.navigation_rounded,
+                          color: _followUser ? BsasColors.radarCyan : Colors.white70,
+                          size: 20,
+                        ),
+                        onPressed: () {
+                          setState(() => _followUser = !_followUser);
+                          if (_followUser) _recenter();
+                        },
+                      ),
+                      Container(width: 32, height: 1, color: BsasColors.darkBorder),
+                      IconButton(
+                        icon: const Icon(Icons.layers_rounded, color: Colors.white, size: 20),
+                        onPressed: _showLayerSheet,
+                      ),
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 8),
-
-                // Recenter
+                const SizedBox(height: 16),
+                
+                // Recenter Primary Action
                 FloatingActionButton(
                   heroTag: 'btn-recenter',
-                  backgroundColor: BsasColors.safeGreen,
+                  backgroundColor: _followUser ? BsasColors.safeGreen : BsasColors.darkSurface,
+                  foregroundColor: _followUser ? Colors.black : Colors.white,
+                  elevation: 6,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    side: BorderSide(
+                      color: _followUser ? Colors.transparent : BsasColors.darkBorder,
+                    ),
+                  ),
                   onPressed: _recenter,
-                  child: const Icon(Icons.my_location, color: Colors.black),
+                  child: const Icon(Icons.my_location),
                 ),
               ],
             ),
@@ -386,7 +474,7 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
 
           // 4. Tracking status bar at bottom left
           Positioned(
-            bottom: 20,
+            bottom: MediaQuery.paddingOf(context).bottom + 20,
             left: 16,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,

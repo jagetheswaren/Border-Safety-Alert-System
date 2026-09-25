@@ -14,6 +14,7 @@ class AlertPreferencesStore {
         voiceEnabled: preferences.getBool(_voiceKey) ?? true,
         vibrationEnabled: preferences.getBool(_vibrationKey) ?? true,
         notificationsEnabled: preferences.getBool(_notificationsKey) ?? true,
+        soundEnabled: preferences.getBool(_soundKey) ?? true,
       );
     } catch (_) {
       return const AlertPreferences();
@@ -26,6 +27,7 @@ class AlertPreferencesStore {
       await preferences.setBool(_voiceKey, value.voiceEnabled);
       await preferences.setBool(_vibrationKey, value.vibrationEnabled);
       await preferences.setBool(_notificationsKey, value.notificationsEnabled);
+      await preferences.setBool(_soundKey, value.soundEnabled);
     } catch (_) {
       // Preferences are optional; alert processing must continue without them.
     }
@@ -34,4 +36,5 @@ class AlertPreferencesStore {
   static const _voiceKey = 'alert_voice_enabled';
   static const _vibrationKey = 'alert_vibration_enabled';
   static const _notificationsKey = 'alert_notifications_enabled';
+  static const _soundKey = 'alert_sound_enabled';
 }

@@ -1,14 +1,14 @@
-from pydantic import BaseModel
-from typing import Optional
+from pydantic import BaseModel, Field
+from typing import Optional, Literal
 from datetime import datetime
 
 class UserBase(BaseModel):
     email: str
-    role: Optional[str] = "FIELD_USER"
+    role: Literal["FIELD_USER", "OPERATOR", "ADMIN"] = "FIELD_USER"
     is_active: Optional[bool] = True
 
 class UserCreate(UserBase):
-    password: str
+    password: str = Field(min_length=10, max_length=72)
 
 class UserUpdate(BaseModel):
     email: Optional[str] = None

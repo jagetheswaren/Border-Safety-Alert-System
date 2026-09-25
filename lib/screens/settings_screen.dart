@@ -71,306 +71,301 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Scaffold(
       key: const Key('screen-settings'),
       backgroundColor: BsasColors.background(isDark),
-      appBar: AppBar(
-        backgroundColor: BsasColors.surface(isDark),
-        title: Text(
-          'Settings & Configuration',
-          style: BsasTypography.heading.copyWith(color: BsasColors.text(isDark)),
-        ),
-      ),
-      body: ListView(
-        padding: const EdgeInsets.symmetric(vertical: BsasSpacing.lg),
-        children: [
-          _sectionHeader('ALERT HARDWARE OUTPUTS', isDark),
-          _settingsCard(
-            isDark: isDark,
-            children: [
-              SwitchListTile(
-                key: const Key('setting-sound'),
-                activeTrackColor: BsasColors.primaryBlue,
-                activeThumbColor: Colors.white,
-                title: Text(
-                  'Audio Sound Alerts',
-                  style: BsasTypography.title.copyWith(color: BsasColors.text(isDark), fontSize: 15),
-                ),
-                subtitle: Text(
-                  'Local acoustic sirens for Warning and Critical events',
-                  style: BsasTypography.caption.copyWith(color: BsasColors.textSec(isDark)),
-                ),
-                value: soundAlerts,
-                onChanged: (v) => _updatePreferences(
-                  widget.preferences.copyWith(soundEnabled: v),
-                ),
-              ),
-              Divider(height: 1, color: BsasColors.border(isDark)),
-              SwitchListTile(
-                key: const Key('setting-voice'),
-                activeTrackColor: BsasColors.primaryBlue,
-                activeThumbColor: Colors.white,
-                title: Text(
-                  'Voice alerts (TTS)',
-                  style: BsasTypography.title.copyWith(color: BsasColors.text(isDark), fontSize: 15),
-                ),
-                subtitle: Text(
-                  'Text-to-speech spoken safety instructions in local audio channel',
-                  style: BsasTypography.caption.copyWith(color: BsasColors.textSec(isDark)),
-                ),
-                value: voiceAlerts,
-                onChanged: (v) => _updatePreferences(
-                  widget.preferences.copyWith(voiceEnabled: v),
-                ),
-              ),
-              Divider(height: 1, color: BsasColors.border(isDark)),
-              SwitchListTile(
-                key: const Key('setting-vibration'),
-                activeTrackColor: BsasColors.primaryBlue,
-                activeThumbColor: Colors.white,
-                title: Text(
-                  'Vibration Haptics',
-                  style: BsasTypography.title.copyWith(color: BsasColors.text(isDark), fontSize: 15),
-                ),
-                subtitle: Text(
-                  'Physical tactile pulses for boundary escalation',
-                  style: BsasTypography.caption.copyWith(color: BsasColors.textSec(isDark)),
-                ),
-                value: vibration,
-                onChanged: (v) => _updatePreferences(
-                  widget.preferences.copyWith(vibrationEnabled: v),
-                ),
-              ),
-              Divider(height: 1, color: BsasColors.border(isDark)),
-              SwitchListTile(
-                key: const Key('setting-notifications'),
-                activeTrackColor: BsasColors.primaryBlue,
-                activeThumbColor: Colors.white,
-                title: Text(
-                  'Android Notifications',
-                  style: BsasTypography.title.copyWith(color: BsasColors.text(isDark), fontSize: 15),
-                ),
-                subtitle: Text(
-                  'Dedicated system channels for high-priority alerts',
-                  style: BsasTypography.caption.copyWith(color: BsasColors.textSec(isDark)),
-                ),
-                value: notifications,
-                onChanged: (v) => _updatePreferences(
-                  widget.preferences.copyWith(notificationsEnabled: v),
-                ),
-              ),
-            ],
-          ),
-
-          _sectionHeader('REGIONAL PREFERENCES', isDark),
-          _settingsCard(
-            isDark: isDark,
-            children: [
-              ListTile(
-                title: Text(
-                  'Language',
-                  style: BsasTypography.title.copyWith(color: BsasColors.text(isDark), fontSize: 15),
-                ),
-                subtitle: Text(
-                  'Interface and voice alert spoken language',
-                  style: BsasTypography.caption.copyWith(color: BsasColors.textSec(isDark)),
-                ),
-                trailing: DropdownButton<String>(
-                  key: const Key('setting-language'),
-                  dropdownColor: BsasColors.card(isDark),
-                  value: language,
-                  underline: const SizedBox.shrink(),
-                  style: BsasTypography.label.copyWith(
-                    color: isDark ? BsasColors.radarCyan : BsasColors.primaryBlue,
-                    fontSize: 14,
+      body: CustomScrollView(
+        slivers: [
+          SliverAppBar(
+            backgroundColor: BsasColors.surface(isDark),
+            pinned: true,
+            elevation: 0,
+            leading: IconButton(
+              icon: Icon(Icons.arrow_back, color: BsasColors.text(isDark)),
+              onPressed: () => Navigator.of(context).pop(),
+            ),
+            title: Row(
+              children: [
+                Icon(Icons.settings_outlined, color: BsasColors.radarCyan, size: 20),
+                const SizedBox(width: BsasSpacing.sm),
+                Text(
+                  'SYSTEM CONFIG',
+                  style: BsasTypography.heading.copyWith(
+                    color: BsasColors.text(isDark),
+                    letterSpacing: 1.2,
+                    fontSize: 16,
                   ),
-                  items: const [
-                    DropdownMenuItem(value: 'English', child: Text('English')),
-                    DropdownMenuItem(value: 'Tamil', child: Text('Tamil (தமிழ்)')),
-                  ],
-                  onChanged: (v) {
-                    if (v != null) setState(() => language = v);
-                  },
                 ),
+              ],
+            ),
+            bottom: PreferredSize(
+              preferredSize: const Size.fromHeight(1.0),
+              child: Container(
+                color: isDark ? BsasColors.darkBorder : BsasColors.lightBorder,
+                height: 1.0,
               ),
-            ],
+            ),
           ),
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(vertical: BsasSpacing.lg),
+            sliver: SliverList(
+              delegate: SliverChildListDelegate([
+                _sectionHeader('ALERT HARDWARE OUTPUTS', isDark),
+                _settingsCard(
+                  isDark: isDark,
+                  children: [
+                    _buildSwitchTile(
+                      key: 'setting-sound',
+                      title: 'Audio Sound Alerts',
+                      subtitle: 'Local acoustic sirens for Warning and Critical events',
+                      value: soundAlerts,
+                      isDark: isDark,
+                      onChanged: (v) => _updatePreferences(widget.preferences.copyWith(soundEnabled: v)),
+                    ),
+                    _divider(isDark),
+                    _buildSwitchTile(
+                      key: 'setting-voice',
+                      title: 'Voice alerts (TTS)',
+                      subtitle: 'Text-to-speech spoken safety instructions in local audio channel',
+                      value: voiceAlerts,
+                      isDark: isDark,
+                      onChanged: (v) => _updatePreferences(widget.preferences.copyWith(voiceEnabled: v)),
+                    ),
+                    _divider(isDark),
+                    _buildSwitchTile(
+                      key: 'setting-vibration',
+                      title: 'Vibration Haptics',
+                      subtitle: 'Physical tactile pulses for boundary escalation',
+                      value: vibration,
+                      isDark: isDark,
+                      onChanged: (v) => _updatePreferences(widget.preferences.copyWith(vibrationEnabled: v)),
+                    ),
+                    _divider(isDark),
+                    _buildSwitchTile(
+                      key: 'setting-notifications',
+                      title: 'Android Notifications',
+                      subtitle: 'Dedicated system channels for high-priority alerts',
+                      value: notifications,
+                      isDark: isDark,
+                      onChanged: (v) => _updatePreferences(widget.preferences.copyWith(notificationsEnabled: v)),
+                    ),
+                  ],
+                ),
 
-          _sectionHeader('LOCAL OFFLINE AI ASSISTANT', isDark),
-          if (mm != null)
-            ListenableBuilder(
-              listenable: mm,
-              builder: (context, _) {
-                final isReady = mm.isModelReady;
-                return _settingsCard(
+                _sectionHeader('REGIONAL PREFERENCES', isDark),
+                _settingsCard(
                   isDark: isDark,
                   children: [
                     ListTile(
-                      leading: Container(
-                        padding: const EdgeInsets.all(BsasSpacing.sm),
-                        decoration: BoxDecoration(
-                          color: (isDark ? BsasColors.primaryBlue : BsasColors.primaryBlueLight).withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(BsasSpacing.buttonRadius),
-                        ),
-                        child: Icon(
-                          Icons.psychology_outlined,
-                          color: isDark ? BsasColors.radarCyan : BsasColors.primaryBlue,
-                          size: 22,
-                        ),
-                      ),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: BsasSpacing.lg, vertical: BsasSpacing.xs),
                       title: Text(
-                        'Qwen3-0.6B-Q4_0 GGUF',
+                        'Language',
                         style: BsasTypography.title.copyWith(color: BsasColors.text(isDark), fontSize: 15),
                       ),
                       subtitle: Text(
-                        'Engine: llama.cpp • Context: 2048 tokens\nLicense: Apache-2.0 • Status: ${mm.state.name.toUpperCase()}',
-                        style: BsasTypography.caption.copyWith(color: BsasColors.textSec(isDark), height: 1.3),
+                        'Interface and voice alert spoken language',
+                        style: BsasTypography.caption.copyWith(color: BsasColors.textSec(isDark)),
                       ),
-                      trailing: StatusBadge(
-                        label: mm.state.name.toUpperCase(),
-                        state: isReady ? StatusState.ready : StatusState.notInstalled,
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.all(BsasSpacing.md),
-                      child: Row(
-                        children: [
-                          if (!isReady)
-                            Expanded(
-                              child: ElevatedButton.icon(
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: isDark ? BsasColors.radarCyan : BsasColors.primaryBlue,
-                                  foregroundColor: isDark ? Colors.black : Colors.white,
-                                  padding: const EdgeInsets.symmetric(vertical: BsasSpacing.md),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(BsasSpacing.buttonRadius),
-                                  ),
-                                ),
-                                icon: const Icon(Icons.download, size: 18),
-                                label: const Text('Install Model File', style: TextStyle(fontWeight: FontWeight.w600)),
-                                onPressed: () => mm.installLocalModel(),
-                              ),
-                            )
-                          else ...[
-                            Expanded(
-                              child: OutlinedButton.icon(
-                                style: OutlinedButton.styleFrom(
-                                  side: BorderSide(color: BsasColors.border(isDark)),
-                                  padding: const EdgeInsets.symmetric(vertical: BsasSpacing.md),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(BsasSpacing.buttonRadius),
-                                  ),
-                                ),
-                                icon: const Icon(Icons.verified_outlined, size: 16),
-                                label: const Text('Verify SHA-256'),
-                                onPressed: () => mm.verifyChecksum(),
-                              ),
-                            ),
-                            const SizedBox(width: BsasSpacing.sm),
-                            OutlinedButton.icon(
-                              style: OutlinedButton.styleFrom(
-                                side: const BorderSide(color: BsasColors.criticalRed),
-                                padding: const EdgeInsets.symmetric(vertical: BsasSpacing.md),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(BsasSpacing.buttonRadius),
-                                ),
-                              ),
-                              icon: const Icon(Icons.delete_outline, size: 16, color: BsasColors.criticalRed),
-                              label: const Text('Delete', style: TextStyle(color: BsasColors.criticalRed)),
-                              onPressed: () => mm.deleteModel(),
-                            ),
+                      trailing: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: BsasSpacing.sm),
+                        decoration: BoxDecoration(
+                          color: BsasColors.surface(isDark),
+                          borderRadius: BorderRadius.circular(BsasSpacing.buttonRadius),
+                          border: Border.all(color: BsasColors.border(isDark)),
+                        ),
+                        child: DropdownButton<String>(
+                          key: const Key('setting-language'),
+                          dropdownColor: BsasColors.surface(isDark),
+                          value: language,
+                          underline: const SizedBox.shrink(),
+                          icon: Icon(Icons.keyboard_arrow_down, color: isDark ? BsasColors.radarCyan : BsasColors.primaryBlue),
+                          style: BsasTypography.label.copyWith(
+                            color: isDark ? BsasColors.radarCyan : BsasColors.primaryBlue,
+                            fontSize: 14,
+                          ),
+                          items: const [
+                            DropdownMenuItem(value: 'English', child: Text('English')),
+                            DropdownMenuItem(value: 'Tamil', child: Text('Tamil (தமிழ்)')),
                           ],
-                        ],
+                          onChanged: (v) {
+                            if (v != null) setState(() => language = v);
+                          },
+                        ),
                       ),
                     ),
                   ],
-                );
-              },
+                ),
+
+                _sectionHeader('LOCAL OFFLINE AI ASSISTANT', isDark),
+                if (mm != null)
+                  ListenableBuilder(
+                    listenable: mm,
+                    builder: (context, _) {
+                      final isReady = mm.isModelReady;
+                      return _settingsCard(
+                        isDark: isDark,
+                        children: [
+                          ListTile(
+                            contentPadding: const EdgeInsets.symmetric(horizontal: BsasSpacing.lg, vertical: BsasSpacing.xs),
+                            leading: Container(
+                              padding: const EdgeInsets.all(BsasSpacing.sm),
+                              decoration: BoxDecoration(
+                                color: (isDark ? BsasColors.primaryBlue : BsasColors.primaryBlueLight).withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(BsasSpacing.buttonRadius),
+                                border: Border.all(color: (isDark ? BsasColors.primaryBlue : BsasColors.primaryBlueLight).withValues(alpha: 0.3)),
+                              ),
+                              child: Icon(
+                                Icons.psychology_outlined,
+                                color: isDark ? BsasColors.radarCyan : BsasColors.primaryBlue,
+                                size: 24,
+                              ),
+                            ),
+                            title: Text(
+                              'Qwen3-0.6B-Q4_0 GGUF',
+                              style: BsasTypography.title.copyWith(color: BsasColors.text(isDark), fontSize: 15),
+                            ),
+                            subtitle: Padding(
+                              padding: const EdgeInsets.only(top: BsasSpacing.xs),
+                              child: Text(
+                                'Engine: llama.cpp • Context: 2048\nLicense: Apache-2.0',
+                                style: BsasTypography.caption.copyWith(color: BsasColors.textSec(isDark), height: 1.3),
+                              ),
+                            ),
+                            trailing: StatusBadge(
+                              label: mm.state.name.toUpperCase(),
+                              state: isReady ? StatusState.ready : StatusState.notInstalled,
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.all(BsasSpacing.md),
+                            decoration: BoxDecoration(
+                              color: isDark ? BsasColors.darkBackground : BsasColors.lightBackground,
+                              border: Border(top: BorderSide(color: BsasColors.border(isDark))),
+                            ),
+                            child: Row(
+                              children: [
+                                if (!isReady)
+                                  Expanded(
+                                    child: ElevatedButton.icon(
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: isDark ? BsasColors.radarCyan : BsasColors.primaryBlue,
+                                        foregroundColor: isDark ? Colors.black : Colors.white,
+                                        padding: const EdgeInsets.symmetric(vertical: BsasSpacing.md),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(BsasSpacing.buttonRadius),
+                                        ),
+                                        elevation: 0,
+                                      ),
+                                      icon: const Icon(Icons.download, size: 18),
+                                      label: const Text('Install Model', style: TextStyle(fontWeight: FontWeight.w600, letterSpacing: 0.5)),
+                                      onPressed: () => mm.installLocalModel(),
+                                    ),
+                                  )
+                                else ...[
+                                  Expanded(
+                                    child: OutlinedButton.icon(
+                                      style: OutlinedButton.styleFrom(
+                                        side: BorderSide(color: BsasColors.border(isDark)),
+                                        foregroundColor: BsasColors.text(isDark),
+                                        padding: const EdgeInsets.symmetric(vertical: BsasSpacing.md),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(BsasSpacing.buttonRadius),
+                                        ),
+                                      ),
+                                      icon: const Icon(Icons.verified_outlined, size: 16),
+                                      label: const Text('Verify Hash', style: TextStyle(letterSpacing: 0.5)),
+                                      onPressed: () => mm.verifyChecksum(),
+                                    ),
+                                  ),
+                                  const SizedBox(width: BsasSpacing.md),
+                                  OutlinedButton.icon(
+                                    style: OutlinedButton.styleFrom(
+                                      side: BorderSide(color: BsasColors.criticalRed.withValues(alpha: 0.5)),
+                                      foregroundColor: BsasColors.criticalRed,
+                                      padding: const EdgeInsets.symmetric(vertical: BsasSpacing.md),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(BsasSpacing.buttonRadius),
+                                      ),
+                                    ),
+                                    icon: const Icon(Icons.delete_outline, size: 16),
+                                    label: const Text('Purge', style: TextStyle(letterSpacing: 0.5)),
+                                    onPressed: () => mm.deleteModel(),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+
+                _sectionHeader('SYSTEM & DIAGNOSTICS', isDark),
+                _settingsCard(
+                  isDark: isDark,
+                  children: [
+                    _buildNavTile(
+                      icon: Icons.security,
+                      iconColor: isDark ? BsasColors.radarCyan : BsasColors.primaryBlue,
+                      title: 'System Permissions',
+                      subtitle: 'Audit GNSS and notification channels',
+                      isDark: isDark,
+                      onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PermissionSetupScreen())),
+                    ),
+                    _divider(isDark),
+                    _buildNavTile(
+                      icon: Icons.monitor_heart_outlined,
+                      iconColor: BsasColors.safeGreen,
+                      title: 'Hardware Diagnostics',
+                      subtitle: 'Live sensor states & latency tests',
+                      isDark: isDark,
+                      onTap: () => widget.onOpenDiagnostics?.call(),
+                    ),
+                    _divider(isDark),
+                    _buildNavTile(
+                      icon: Icons.explore_outlined,
+                      iconColor: isDark ? BsasColors.radarCyan : BsasColors.primaryBlue,
+                      title: 'Feature Tour',
+                      subtitle: 'Review offline-first protocols',
+                      isDark: isDark,
+                      onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const OnboardingScreen())),
+                    ),
+                  ],
+                ),
+
+                _sectionHeader('GOVERNANCE & HELP', isDark),
+                _settingsCard(
+                  isDark: isDark,
+                  children: [
+                    _buildNavTile(
+                      icon: Icons.help_outline,
+                      iconColor: isDark ? BsasColors.radarCyan : BsasColors.primaryBlue,
+                      title: 'Emergency Help',
+                      subtitle: 'Severity tiers & routing advice',
+                      isDark: isDark,
+                      onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const HelpScreen())),
+                    ),
+                    _divider(isDark),
+                    _buildNavTile(
+                      icon: Icons.privacy_tip_outlined,
+                      iconColor: BsasColors.warningOrange,
+                      title: 'Privacy & Data',
+                      subtitle: 'Zero cloud telemetry policy',
+                      isDark: isDark,
+                      onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PrivacyScreen())),
+                    ),
+                    _divider(isDark),
+                    _buildNavTile(
+                      icon: Icons.info_outline,
+                      iconColor: isDark ? BsasColors.radarCyan : BsasColors.primaryBlue,
+                      title: 'About BSAS',
+                      subtitle: 'Version v1.1.0 • Build details',
+                      isDark: isDark,
+                      onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AboutScreen())),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: BsasSpacing.xxxl),
+              ]),
             ),
-
-          _sectionHeader('SYSTEM, PERMISSIONS & TOUR', isDark),
-          _settingsCard(
-            isDark: isDark,
-            children: [
-              ListTile(
-                leading: Icon(Icons.security, color: isDark ? BsasColors.radarCyan : BsasColors.primaryBlue, size: 22),
-                title: Text('System Permissions', style: BsasTypography.title.copyWith(color: BsasColors.text(isDark), fontSize: 15)),
-                subtitle: Text('Audit and configure GNSS location and notification channels', style: BsasTypography.caption.copyWith(color: BsasColors.textSec(isDark))),
-                trailing: Icon(Icons.chevron_right, color: BsasColors.textMut(isDark)),
-                onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const PermissionSetupScreen()),
-                  );
-                },
-              ),
-              Divider(height: 1, color: BsasColors.border(isDark)),
-              ListTile(
-                leading: Icon(Icons.explore_outlined, color: isDark ? BsasColors.radarCyan : BsasColors.primaryBlue, size: 22),
-                title: Text('Feature Onboarding Tour', style: BsasTypography.title.copyWith(color: BsasColors.text(isDark), fontSize: 15)),
-                subtitle: Text('Review offline-first capabilities and civilian protection protocols', style: BsasTypography.caption.copyWith(color: BsasColors.textSec(isDark))),
-                trailing: Icon(Icons.chevron_right, color: BsasColors.textMut(isDark)),
-                onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const OnboardingScreen()),
-                  );
-                },
-              ),
-            ],
           ),
-
-          _sectionHeader('DIAGNOSTICS & HARDWARE VERIFICATION', isDark),
-          _settingsCard(
-            isDark: isDark,
-            children: [
-              ListTile(
-                leading: const Icon(Icons.monitor_heart_outlined, color: BsasColors.safeGreen, size: 22),
-                title: Text('System Diagnostics', style: BsasTypography.title.copyWith(color: BsasColors.text(isDark), fontSize: 15)),
-                subtitle: Text('View live sensor states, latencies, and run I/O tests', style: BsasTypography.caption.copyWith(color: BsasColors.textSec(isDark))),
-                trailing: Icon(Icons.chevron_right, color: BsasColors.textMut(isDark)),
-                onTap: widget.onOpenDiagnostics,
-              ),
-            ],
-          ),
-
-          _sectionHeader('HELP & DATA GOVERNANCE', isDark),
-          _settingsCard(
-            isDark: isDark,
-            children: [
-              ListTile(
-                leading: Icon(Icons.help_outline, color: isDark ? BsasColors.radarCyan : BsasColors.primaryBlue, size: 22),
-                title: Text('Emergency Help & Protocols', style: BsasTypography.title.copyWith(color: BsasColors.text(isDark), fontSize: 15)),
-                subtitle: Text('Severity tiers, escape routing advice, and troubleshooting', style: BsasTypography.caption.copyWith(color: BsasColors.textSec(isDark))),
-                trailing: Icon(Icons.chevron_right, color: BsasColors.textMut(isDark)),
-                onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const HelpScreen()),
-                  );
-                },
-              ),
-              Divider(height: 1, color: BsasColors.border(isDark)),
-              ListTile(
-                leading: const Icon(Icons.privacy_tip_outlined, color: BsasColors.safeGreen, size: 22),
-                title: Text('Privacy & Data Governance', style: BsasTypography.title.copyWith(color: BsasColors.text(isDark), fontSize: 15)),
-                subtitle: Text('Zero cloud telemetry policy and local SQLite purge', style: BsasTypography.caption.copyWith(color: BsasColors.textSec(isDark))),
-                trailing: Icon(Icons.chevron_right, color: BsasColors.textMut(isDark)),
-                onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const PrivacyScreen()),
-                  );
-                },
-              ),
-              Divider(height: 1, color: BsasColors.border(isDark)),
-              ListTile(
-                leading: Icon(Icons.info_outline, color: isDark ? BsasColors.radarCyan : BsasColors.primaryBlue, size: 22),
-                title: Text('About BSAS', style: BsasTypography.title.copyWith(color: BsasColors.text(isDark), fontSize: 15)),
-                subtitle: Text('Version v1.1.0 • Architecture, licenses & build details', style: BsasTypography.caption.copyWith(color: BsasColors.textSec(isDark))),
-                trailing: Icon(Icons.chevron_right, color: BsasColors.textMut(isDark)),
-                onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const AboutScreen()),
-                  );
-                },
-              ),
-            ],
-          ),
-          const SizedBox(height: BsasSpacing.xxxl),
         ],
       ),
     );
@@ -380,15 +375,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Padding(
       padding: const EdgeInsets.only(
         top: BsasSpacing.xl,
-        bottom: BsasSpacing.xs,
-        left: BsasSpacing.lg,
-        right: BsasSpacing.lg,
+        bottom: BsasSpacing.sm,
+        left: BsasSpacing.xl,
+        right: BsasSpacing.xl,
       ),
-      child: Text(
-        title,
-        style: BsasTypography.sectionHeading.copyWith(
-          color: isDark ? BsasColors.radarCyan : BsasColors.primaryBlue,
-        ),
+      child: Row(
+        children: [
+          Container(
+            width: 4,
+            height: 12,
+            decoration: BoxDecoration(
+              color: isDark ? BsasColors.radarCyan : BsasColors.primaryBlue,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(width: BsasSpacing.sm),
+          Text(
+            title,
+            style: BsasTypography.sectionHeading.copyWith(
+              color: isDark ? BsasColors.radarCyan : BsasColors.primaryBlue,
+              letterSpacing: 1.5,
+              fontSize: 12,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -400,17 +410,91 @@ class _SettingsScreenState extends State<SettingsScreen> {
         vertical: BsasSpacing.xs,
       ),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(BsasSpacing.cardRadius),
-        border: Border.all(color: BsasColors.border(isDark)),
-      ),
-      child: Material(
         color: BsasColors.card(isDark),
         borderRadius: BorderRadius.circular(BsasSpacing.cardRadius),
-        clipBehavior: Clip.antiAlias,
+        border: Border.all(color: BsasColors.border(isDark)),
+        boxShadow: isDark
+            ? [BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 10, offset: const Offset(0, 4))]
+            : [BoxShadow(color: BsasColors.lightBorder, blurRadius: 10, offset: const Offset(0, 4))],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Material(
+        color: BsasColors.card(isDark),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: children,
         ),
       ),
+    );
+  }
+
+  Widget _divider(bool isDark) {
+    return Divider(
+      height: 1,
+      thickness: 1,
+      color: BsasColors.border(isDark),
+      indent: BsasSpacing.lg,
+      endIndent: BsasSpacing.lg,
+    );
+  }
+
+  Widget _buildSwitchTile({
+    required String key,
+    required String title,
+    required String subtitle,
+    required bool value,
+    required bool isDark,
+    required ValueChanged<bool> onChanged,
+  }) {
+    return SwitchListTile(
+      key: Key(key),
+      contentPadding: const EdgeInsets.symmetric(horizontal: BsasSpacing.lg, vertical: BsasSpacing.xs),
+      activeThumbColor: isDark ? BsasColors.darkBackground : BsasColors.lightBackground,
+      activeTrackColor: isDark ? BsasColors.radarCyan : BsasColors.primaryBlue,
+      inactiveThumbColor: BsasColors.textMut(isDark),
+      inactiveTrackColor: isDark ? BsasColors.darkBackground : BsasColors.lightBorder,
+      title: Text(
+        title,
+        style: BsasTypography.title.copyWith(color: BsasColors.text(isDark), fontSize: 15),
+      ),
+      subtitle: Padding(
+        padding: const EdgeInsets.only(top: BsasSpacing.xs),
+        child: Text(
+          subtitle,
+          style: BsasTypography.caption.copyWith(color: BsasColors.textSec(isDark), height: 1.2),
+        ),
+      ),
+      value: value,
+      onChanged: onChanged,
+    );
+  }
+
+  Widget _buildNavTile({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required String subtitle,
+    required bool isDark,
+    required VoidCallback onTap,
+  }) {
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: BsasSpacing.lg, vertical: BsasSpacing.xs),
+      leading: Container(
+        padding: const EdgeInsets.all(BsasSpacing.sm),
+        decoration: BoxDecoration(
+          color: iconColor.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(BsasSpacing.buttonRadius),
+          border: Border.all(color: iconColor.withValues(alpha: 0.2)),
+        ),
+        child: Icon(icon, color: iconColor, size: 20),
+      ),
+      title: Text(title, style: BsasTypography.title.copyWith(color: BsasColors.text(isDark), fontSize: 15)),
+      subtitle: Padding(
+        padding: const EdgeInsets.only(top: BsasSpacing.xs),
+        child: Text(subtitle, style: BsasTypography.caption.copyWith(color: BsasColors.textSec(isDark))),
+      ),
+      trailing: Icon(Icons.chevron_right, color: BsasColors.textMut(isDark), size: 20),
+      onTap: onTap,
     );
   }
 }

@@ -9,7 +9,9 @@ from app.models.alert import Alert
 from app.schemas.alert import AlertInDB, AlertCreate
 from app.schemas.pagination import PaginatedResponse
 
-router = APIRouter()
+from app.api.auth import require_operator
+
+router = APIRouter(dependencies=[Depends(require_operator)])
 
 @router.get("/", response_model=PaginatedResponse[AlertInDB])
 def read_alerts(
@@ -52,3 +54,31 @@ def create_alert(alert: AlertCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(db_alert)
     return db_alert
+
+@router.post("/bulk", status_code=201)
+def create_alerts_bulk(events: List[dict], db: Session = Depends(get_db)):
+    """
+    Accepts bulk event payloads from the mobile sync engine, inserting
+    unseen alerts and returning acknowledged event IDs.
+    """
+    synced_ids = []
+    for item in events:
+        eid = item.get("event_id")
+        if not eid:
+            continue
+        existing = db.query(Alert).filter(Alert.id == eid).first()
+        if not existing:
+            db_alert = Alert(
+                id=eid,
+                type=item.get("event_type", "SAFETY_ALERT"),
+                severity=item.get("risk_state", "WARNING"),
+                title=item.get("alert_state", "Border Alert"),
+                message=f"Zone: {item.get('zone', 'Unknown')}. AI: {item.get('ai_state', 'NORMAL')}",
+                location_lat=item.get("latitude"),
+                location_lng=item.get("longitude"),
+            )
+            db.add(db_alert)
+        synced_ids.append(eid)
+    db.commit()
+    return {"status": "SUCCESS", "synced_count": len(synced_ids), "acknowledged_ids": synced_ids}
+

@@ -51,6 +51,8 @@ dependencies:
   latlong2: ^0.10.1
   path_provider: ^2.1.6
   crypto: ^3.0.7
+  intl: ^0.20.3
+  flutter_secure_storage: ^11.2.0
 
 dev_dependencies:
   flutter_test:
@@ -83,6 +85,22 @@ flutter:
     - assets/branding/
     - assets/audio/
     - assets/maps/
+    - assets/maps/offline_tiles/
+    - assets/maps/offline_tiles/8/182/
+    - assets/maps/offline_tiles/9/365/
+    - assets/maps/offline_tiles/10/730/
+    - assets/maps/offline_tiles/10/731/
+    - assets/maps/offline_tiles/11/1460/
+    - assets/maps/offline_tiles/11/1461/
+    - assets/maps/offline_tiles/11/1462/
+    - assets/maps/offline_tiles/11/1463/
+    - assets/maps/offline_tiles/12/2920/
+    - assets/maps/offline_tiles/12/2921/
+    - assets/maps/offline_tiles/12/2922/
+    - assets/maps/offline_tiles/12/2923/
+    - assets/maps/offline_tiles/12/2924/
+    - assets/maps/offline_tiles/12/2925/
+    - assets/maps/offline_tiles/12/2926/
 
   # To add assets to your application, add an assets section, like this:
   # assets:

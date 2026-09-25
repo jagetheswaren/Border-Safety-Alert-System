@@ -6,8 +6,8 @@ enum RiskClass {
 }
 
 class AiPredictionResult {
-  final double predictedLatitude;
-  final double predictedLongitude;
+  final double? predictedLatitude;
+  final double? predictedLongitude;
   final RiskClass riskClass;
   final bool isAvailable;
 
@@ -20,8 +20,8 @@ class AiPredictionResult {
 
   factory AiPredictionResult.unavailable() {
     return const AiPredictionResult(
-      predictedLatitude: 0.0,
-      predictedLongitude: 0.0,
+      predictedLatitude: null,
+      predictedLongitude: null,
       riskClass: RiskClass.low,
       isAvailable: false,
     );

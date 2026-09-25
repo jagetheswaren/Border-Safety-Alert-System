@@ -105,3 +105,11 @@ export interface AlertFilterParams {
   severity?: string;
   zone_id?: string;
 }
+
+export interface HealthStatus {
+  status: string;
+  service: string;
+  version: string;
+  environment: string;
+  database: { status: string; engine: string; geospatial: string };
+}

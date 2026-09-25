@@ -10,7 +10,6 @@ import '../services/gps_service.dart';
 import '../services/model_manager.dart';
 import '../services/offline_map_service.dart';
 
-/// Redesigned SplashScreen with elegant scale/fade animation and hardware audit.
 class SplashScreen extends StatefulWidget {
   const SplashScreen({
     super.key,
@@ -48,7 +47,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
       duration: const Duration(milliseconds: 1200),
     );
 
-    _scaleAnimation = Tween<double>(begin: 0.85, end: 1.0).animate(
+    _scaleAnimation = Tween<double>(begin: 0.9, end: 1.0).animate(
       CurvedAnimation(parent: _animController, curve: Curves.easeOutCubic),
     );
 
@@ -100,10 +99,10 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     final isDark = theme.brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: isDark ? BsasColors.darkBackground : BsasColors.lightBackground,
+      backgroundColor: BsasColors.background(isDark),
       body: Center(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: BsasSpacing.xxxl),
+          padding: const EdgeInsets.symmetric(horizontal: BsasSpacing.xl),
           child: FadeTransition(
             opacity: _fadeAnimation,
             child: ScaleTransition(
@@ -115,47 +114,75 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                   const SizedBox(height: BsasSpacing.xl),
                   Text(
                     'BSAS',
-                    style: BsasTypography.display.copyWith(
-                      fontSize: 28,
-                      letterSpacing: 1.5,
+                    style: BsasTypography.heading.copyWith(
+                      fontSize: 32,
+                      letterSpacing: 2.0,
                       fontWeight: FontWeight.w800,
-                      color: isDark ? BsasColors.textLightPrimary : BsasColors.textDarkPrimary,
+                      color: BsasColors.text(isDark),
                     ),
                   ),
                   const SizedBox(height: BsasSpacing.xs),
                   Text(
                     'BORDER SAFETY ALERT SYSTEM',
-                    style: BsasTypography.caption.copyWith(
-                      letterSpacing: 2.0,
+                    style: BsasTypography.monospace.copyWith(
+                      letterSpacing: 2.5,
                       fontWeight: FontWeight.w700,
                       fontSize: 11,
-                      color: BsasColors.primaryBlue,
+                      color: isDark ? BsasColors.radarCyan : BsasColors.primaryBlue,
                     ),
                   ),
                   const SizedBox(height: BsasSpacing.xxl),
 
                   // Diagnostics Checklist Card
                   Container(
-                    padding: BsasSpacing.cardInsets,
+                    padding: const EdgeInsets.all(BsasSpacing.lg),
                     decoration: BoxDecoration(
-                      color: isDark ? BsasColors.darkCard : BsasColors.lightCard,
+                      color: BsasColors.card(isDark),
                       borderRadius: BorderRadius.circular(BsasSpacing.cardRadius),
                       border: Border.all(
-                        color: isDark ? BsasColors.darkBorder : BsasColors.lightBorder,
+                        color: BsasColors.border(isDark),
                         width: 1,
                       ),
+                      boxShadow: isDark
+                          ? [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.2),
+                                blurRadius: 12,
+                                offset: const Offset(0, 4),
+                              )
+                            ]
+                          : [
+                              BoxShadow(
+                                color: BsasColors.lightBorder,
+                                blurRadius: 12,
+                                offset: const Offset(0, 4),
+                              )
+                            ],
                     ),
                     child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _checkItem('Deterministic Risk Engine', _safetyReady),
-                        const SizedBox(height: BsasSpacing.sm),
-                        _checkItem('Alert Channels (Sound, TTS, Haptics)', _alertsReady),
-                        const SizedBox(height: BsasSpacing.sm),
-                        _checkItem('Offline Map Tile Storage', _mapReady),
-                        const SizedBox(height: BsasSpacing.sm),
-                        _checkItem('On-Device Local AI Runtime', _aiChecked),
-                        const SizedBox(height: BsasSpacing.sm),
-                        _checkItem('GNSS Hardware Geolocation', _gpsReady),
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: BsasSpacing.md),
+                          child: Text(
+                            'BOOT SEQUENCE INITIATED',
+                            style: BsasTypography.monospace.copyWith(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              color: BsasColors.textSec(isDark),
+                              letterSpacing: 1.0,
+                            ),
+                          ),
+                        ),
+                        _checkItem('Deterministic Risk Engine', _safetyReady, isDark),
+                        const SizedBox(height: BsasSpacing.md),
+                        _checkItem('Alert Channels (Sound/TTS)', _alertsReady, isDark),
+                        const SizedBox(height: BsasSpacing.md),
+                        _checkItem('Offline Map Tile Storage', _mapReady, isDark),
+                        const SizedBox(height: BsasSpacing.md),
+                        _checkItem('On-Device Local AI Runtime', _aiChecked, isDark),
+                        const SizedBox(height: BsasSpacing.md),
+                        _checkItem('GNSS Hardware Geolocation', _gpsReady, isDark),
                       ],
                     ),
                   ),
@@ -168,7 +195,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     );
   }
 
-  Widget _checkItem(String label, bool isReady) {
+  Widget _checkItem(String label, bool isReady, bool isDark) {
     return Row(
       children: [
         StatusDot(
@@ -179,20 +206,24 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
         const SizedBox(width: BsasSpacing.md),
         Expanded(
           child: Text(
-            label,
-            style: BsasTypography.body.copyWith(
-              fontSize: 13,
-              fontWeight: isReady ? FontWeight.w600 : FontWeight.w400,
+            label.toUpperCase(),
+            style: BsasTypography.monospace.copyWith(
+              fontSize: 11,
+              color: BsasColors.text(isDark),
+              fontWeight: isReady ? FontWeight.w700 : FontWeight.w500,
             ),
           ),
         ),
         if (isReady)
           const Icon(Icons.check, size: 16, color: BsasColors.safeGreen)
         else
-          const SizedBox(
+          SizedBox(
             width: 12,
             height: 12,
-            child: CircularProgressIndicator(strokeWidth: 1.5, color: BsasColors.primaryBlue),
+            child: CircularProgressIndicator(
+              strokeWidth: 2.0, 
+              color: isDark ? BsasColors.radarCyan : BsasColors.primaryBlue,
+            ),
           ),
       ],
     );

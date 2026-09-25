@@ -82,7 +82,8 @@ class LocationModel {
     DateTime now, {
     Duration maxAge = const Duration(seconds: 30),
   }) {
-    return now.difference(timestamp) > maxAge;
+    final age = now.difference(timestamp);
+    return age > maxAge || age < const Duration(seconds: -5);
   }
 
   bool get isStale => isStaleAt(DateTime.now());

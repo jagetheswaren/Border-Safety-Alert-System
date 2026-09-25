@@ -18,7 +18,7 @@ class Settings(BaseModel):
     # In development, if SECRET_KEY is not provided, a dev-only key is used with an explicit warning.
     SECRET_KEY: str = os.getenv("SECRET_KEY", "")
     
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", str(60 * 24 * 8)))
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", str(60)))
     DATABASE_URL: str = os.getenv("DATABASE_URL", f"sqlite:///{DEFAULT_DB_PATH}")
     REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379")
     
@@ -42,6 +42,10 @@ class Settings(BaseModel):
         is_prod = self.ENVIRONMENT in ("production", "prod")
         
         if is_prod:
+            if not self.DATABASE_URL.startswith(('postgresql://', 'postgresql+psycopg2://')):
+                raise RuntimeError('Production requires PostgreSQL/PostGIS DATABASE_URL')
+            if not self.CORS_ORIGINS or '*' in self.get_cors_origins():
+                raise RuntimeError('Production requires explicit CORS_ORIGINS')
             if not self.SECRET_KEY or len(self.SECRET_KEY) < 32:
                 raise RuntimeError(
                     "FATAL CONFIGURATION ERROR: Running in PRODUCTION mode, but SECRET_KEY "

@@ -9,7 +9,9 @@ from app.models.alert import Alert
 from app.schemas.incident import IncidentInDB
 from app.schemas.alert import AlertInDB
 
-router = APIRouter()
+from app.api.auth import require_operator
+
+router = APIRouter(dependencies=[Depends(require_operator)])
 
 @router.get("/poll")
 def poll_events(since: Optional[str] = None, db: Session = Depends(get_db)):

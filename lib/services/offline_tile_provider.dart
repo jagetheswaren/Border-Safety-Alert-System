@@ -23,6 +23,10 @@ class OfflineTileProvider extends TileProvider {
     if (file.existsSync()) {
       return FileImage(file);
     }
+    final key = '${coordinates.z}/${coordinates.x}/${coordinates.y}';
+    if (OfflineMapService.bundledTileKeys.contains(key)) {
+      return AssetImage('assets/maps/offline_tiles/$key.png');
+    }
     if (allowNetworkFallback) {
       return NetworkImage(
         'https://tile.openstreetmap.org/${coordinates.z}/${coordinates.x}/${coordinates.y}.png',

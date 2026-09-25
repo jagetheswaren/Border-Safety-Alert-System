@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 
 /// Platform boundary for location access (Phase 3).
@@ -14,15 +15,24 @@ abstract class LocationProvider {
 
 /// Production implementation backed by the geolocator plugin.
 ///
-/// Foreground fixes only: high accuracy with a 5 m distance filter.
-/// No background location is requested.
+/// Foreground fixes: best accuracy with continuous real-time streaming (0m filter).
 class GeolocatorProvider implements LocationProvider {
-  static const _settings = LocationSettings(
-    accuracy: LocationAccuracy.high,
-    distanceFilter: 5,
-  );
+  static LocationSettings get _settings {
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      return AndroidSettings(
+        accuracy: LocationAccuracy.best,
+        distanceFilter: 0,
+        forceLocationManager: false,
+        intervalDuration: const Duration(seconds: 1),
+      );
+    }
+    return const LocationSettings(
+      accuracy: LocationAccuracy.best,
+      distanceFilter: 0,
+    );
+  }
 
-  static const _timeLimit = Duration(seconds: 15);
+  static const _timeLimit = Duration(seconds: 10);
 
   @override
   Future<bool> isServiceEnabled() => Geolocator.isLocationServiceEnabled();
@@ -37,13 +47,26 @@ class GeolocatorProvider implements LocationProvider {
   @override
   Future<Position?> currentPosition() async {
     try {
-      // No fix within the limit (or disabled service / denied permission):
-      // report null instead of hanging startup.
+      // 1. Try immediate last known position for instant startup lock
+      final lastKnown = await Geolocator.getLastKnownPosition();
+      if (lastKnown != null) {
+        // If last known position is fresh (< 2 minutes old), return it immediately
+        final age = DateTime.now().difference(lastKnown.timestamp);
+        if (age.inMinutes < 2) {
+          return lastKnown;
+        }
+      }
+      // 2. Fetch fresh high-accuracy position
       return await Geolocator.getCurrentPosition(
         locationSettings: _settings,
       ).timeout(_timeLimit);
     } catch (_) {
-      return null;
+      // If fresh fix timed out, fall back to last known position if available
+      try {
+        return await Geolocator.getLastKnownPosition();
+      } catch (_) {
+        return null;
+      }
     }
   }
 

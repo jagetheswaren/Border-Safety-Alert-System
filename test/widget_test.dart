@@ -22,7 +22,7 @@ void main() {
 
     expect(find.byKey(const Key('app-shell')), findsOneWidget);
     expect(find.byKey(const Key('screen-home')), findsOneWidget);
-    expect(find.byKey(const Key('safety-status-card')), findsOneWidget);
+    expect(find.byKey(const Key('safety-state')), findsOneWidget);
     expect(find.byKey(const Key('gps-live-card')), findsOneWidget);
     expect(find.byKey(const Key('boundary-count-card')), findsOneWidget);
     expect(find.text('Offline boundaries: 2'), findsOneWidget);

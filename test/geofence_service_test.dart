@@ -39,7 +39,8 @@ LocationModel location(double latitude, double longitude, {double? bearing}) {
     latitude: latitude,
     longitude: longitude,
     bearing: bearing,
-    timestamp: DateTime(2026, 9, 10),
+    timestamp: DateTime.now(),
+    accuracy: 5,
   );
 }
 

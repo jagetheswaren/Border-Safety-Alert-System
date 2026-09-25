@@ -7,7 +7,9 @@ from app.models.user import User
 from app.models.incident import Incident
 from app.models.alert import Alert
 
-router = APIRouter()
+from app.api.auth import require_operator
+
+router = APIRouter(dependencies=[Depends(require_operator)])
 
 @router.get("/stats")
 def get_dashboard_stats(db: Session = Depends(get_db)):

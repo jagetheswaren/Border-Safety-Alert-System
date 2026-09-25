@@ -7,7 +7,7 @@ import 'package:tflite_flutter/tflite_flutter.dart';
 import '../models/location_model.dart';
 import '../models/ai_prediction_result.dart';
 
-class AiPredictionService {
+class AiPredictionService extends ChangeNotifier {
   static const int _sequenceLength = 5;
   final List<LocationModel> _locationBuffer = [];
   
@@ -30,8 +30,18 @@ class AiPredictionService {
 
   Future<void> initialize() async {
     try {
-      _lstmInterpreter = await Interpreter.fromAsset('assets/models/phase7-lstm-v1.tflite');
-      _lstmReady = true;
+      try {
+        _lstmInterpreter = await Interpreter.fromAsset('assets/models/phase7-lstm-v1.tflite');
+        final input = _lstmInterpreter!.getInputTensor(0);
+        final output = _lstmInterpreter!.getOutputTensor(0);
+        if (input.shape.join(',') != '1,5,6' || output.shape.join(',') != '1,2') {
+          throw StateError('Unexpected LSTM tensor schema');
+        }
+        _lstmReady = true;
+      } catch (tfliteErr) {
+        debugPrint('TFLite interpreter not available on this platform (trajectory prediction unavailable): $tfliteErr');
+        _lstmReady = false;
+      }
 
       final rfJson = await rootBundle.loadString('assets/models/phase7-rf-v1.json');
       _rfModel = jsonDecode(rfJson);
@@ -43,13 +53,24 @@ class AiPredictionService {
           _scalerParams!['means'] is List &&
           _scalerParams!['scales'] is List;
 
-      _isInitialized = _lstmReady && _rfReady && _scalerReady;
-      _lastError = _isInitialized ? null : 'Incomplete model bundle';
+      const names = ['latitude','longitude','speed','bearing','distance_to_boundary','movement_direction_difference'];
+      if ((_scalerParams!['features'] as List).join(',') != names.join(',') ||
+          (_scalerParams!['means'] as List).length != 6 || (_scalerParams!['scales'] as List).length != 6 ||
+          (_scalerParams!['scales'] as List).any((v) => v is! num || !v.isFinite || v <= 0) ||
+          (_scalerParams!['means'] as List).any((v) => v is! num || !v.isFinite)) {
+        throw StateError('Invalid scaler or feature schema');
+      }
+      final trees = _rfModel!['trees'] as List;
+      if (trees.isEmpty) throw StateError('Random Forest has no trees');
+      for (final tree in trees) { _validateTree(tree as Map<String,dynamic>, 0); }
+      _isInitialized = _rfReady && _scalerReady;
+      _lastError = _isInitialized ? null : 'Incomplete Random Forest / Scaler bundle';
     } catch (e) {
       debugPrint('AiPredictionService init error: $e');
       _isInitialized = false;
       _lastError = '$e';
     }
+    notifyListeners();
   }
 
   double _haversineDistance(double lat1, double lon1, double lat2, double lon2) {
@@ -78,22 +99,23 @@ class AiPredictionService {
   }
 
   Future<AiPredictionResult> predict(LocationModel currentLocation, double boundaryLat, double boundaryLon) async {
-    if (!_isInitialized || _lstmInterpreter == null || _rfModel == null || _scalerParams == null) {
+    if (!_isInitialized || _rfModel == null || _scalerParams == null) {
       return AiPredictionResult.unavailable();
     }
 
+    if (currentLocation.isStale || currentLocation.speed == null || currentLocation.bearing == null) return AiPredictionResult.unavailable();
+    if (_locationBuffer.isNotEmpty && !currentLocation.timestamp.isAfter(_locationBuffer.last.timestamp)) return AiPredictionResult.unavailable();
     _locationBuffer.add(currentLocation);
     if (_locationBuffer.length > _sequenceLength) {
       _locationBuffer.removeAt(0);
     }
 
-    if (_locationBuffer.length < _sequenceLength) {
-      return AiPredictionResult.unavailable();
-    }
+    if (_locationBuffer.length < _sequenceLength) return AiPredictionResult.unavailable();
+    final bufferCopy = List<LocationModel>.from(_locationBuffer);
 
     // Build feature sequence
     List<List<double>> sequence = [];
-    for (var loc in _locationBuffer) {
+    for (var loc in bufferCopy) {
       final dist = _haversineDistance(loc.latitude, loc.longitude, boundaryLat, boundaryLon);
       final bearTo = _initialBearing(loc.latitude, loc.longitude, boundaryLat, boundaryLon);
       
@@ -120,18 +142,29 @@ class AiPredictionService {
       sequence.add(scaledFeatures);
     }
 
-    // Run LSTM
-    // Input shape [1, 5, 6]
-    var input = [sequence];
-    var output = List.filled(1 * 2, 0.0).reshape([1, 2]);
-    
-    final sw = Stopwatch()..start();
-    _lstmInterpreter!.run(input, output);
-    sw.stop();
-    _lastInference = sw.elapsed;
-    final dLat = output[0][0] as double;
-    final dLon = output[0][1] as double;
-    
+    double dLat = 0.0;
+    double dLon = 0.0;
+
+    if (_lstmReady && _lstmInterpreter != null) {
+      // Run LSTM
+      // Input shape [1, 5, 6]
+      var input = [sequence];
+      var output = List.filled(1 * 2, 0.0).reshape([1, 2]);
+      
+      final sw = Stopwatch()..start();
+      try {
+        _lstmInterpreter!.run(input, output);
+        sw.stop();
+        _lastInference = sw.elapsed;
+        dLat = output[0][0] as double;
+        dLon = output[0][1] as double;
+      } catch (e) {
+        sw.stop();
+        _lastError = '$e';
+        _lstmReady = false;
+      }
+    }
+
     final predictedLat = currentLocation.latitude + dLat;
     final predictedLon = currentLocation.longitude + dLon;
 
@@ -164,11 +197,27 @@ class AiPredictionService {
     else { risk = RiskClass.low; }
 
     return AiPredictionResult(
-      predictedLatitude: predictedLat,
-      predictedLongitude: predictedLon,
+      predictedLatitude: _lstmReady ? predictedLat : null,
+      predictedLongitude: _lstmReady ? predictedLon : null,
       riskClass: risk,
     );
   }
+
+  void _validateTree(Map<String,dynamic> node, int depth) {
+    if (depth > 64) throw StateError('RF tree too deep');
+    if (node['type'] == 'leaf') {
+      if (![0,1,2].contains(node['class'])) throw StateError('Invalid RF class');
+      return;
+    }
+    final index=node['feature_idx'];
+    final threshold=node['threshold'];
+    if (node['type'] != 'node' || index is! int || index < 0 || index >= 4 || threshold is! num || !threshold.isFinite) throw StateError('Invalid RF split');
+    _validateTree(node['left'] as Map<String,dynamic>, depth+1);
+    _validateTree(node['right'] as Map<String,dynamic>, depth+1);
+  }
+
+  @override
+  void dispose() { _lstmInterpreter?.close(); super.dispose(); }
 
   int _evaluateTree(Map<String, dynamic> node, List<double> features) {
     if (node['type'] == 'leaf') {

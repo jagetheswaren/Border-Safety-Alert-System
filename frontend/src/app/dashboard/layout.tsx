@@ -1,121 +1,51 @@
 "use client";
+import { useEffect, useState } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { Activity, ShieldCheck, LayoutDashboard, Map, FileText, Bell, Layers, LogOut, Menu, ChevronRight } from 'lucide-react';
+import { getMe, isOperator, SESSION_EXPIRED } from '@/lib/api';
+import { useResource } from '@/lib/use-resource';
+import { ErrorState, LoadingState } from '@/components/Workspace';
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { getMe } from "@/lib/api";
-import { User } from "@/lib/types";
-import { Shield, LayoutDashboard, Map, FileText, AlertTriangle, Settings, LogOut } from "lucide-react";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-
+const navigation = [
+  { href: '/dashboard', label: 'Overview', icon: LayoutDashboard },
+  { href: '/dashboard/map', label: 'Safety map', icon: Map },
+  { href: '/dashboard/incidents', label: 'Incidents', icon: FileText },
+  { href: '/dashboard/alerts', label: 'Alerts', icon: Bell },
+  { href: '/dashboard/zones', label: 'Safety zones', icon: Layers },
+  { href: '/dashboard/status', label: 'System status', icon: Activity },
+];
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { data: user, error, loading, refresh } = useResource(getMe);
+  const [menuOpen, setMenuOpen] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
-
   useEffect(() => {
-    getMe()
-      .then(setUser)
-      .catch(() => router.push("/login"))
-      .finally(() => setLoading(false));
+    const expired = () => router.replace('/login?reason=expired');
+    window.addEventListener(SESSION_EXPIRED, expired);
+    if (!localStorage.getItem('token')) router.replace('/login');
+    return () => window.removeEventListener(SESSION_EXPIRED, expired);
   }, [router]);
-
-  if (loading) {
-    return <div className="min-h-screen bg-gray-950 flex items-center justify-center text-white">Loading BSAS...</div>;
-  }
-
-  const isActive = (path: string) => {
-    if (path === "/dashboard") return pathname === "/dashboard";
-    return pathname.startsWith(path);
-  };
-
-  return (
-    <div className="min-h-screen bg-gray-950 text-white flex">
-      {/* Sidebar */}
-      <aside className="w-64 bg-gray-900 border-r border-gray-800 flex flex-col">
-        <div className="h-16 flex items-center px-6 border-b border-gray-800">
-          <Shield className="w-6 h-6 text-blue-500 mr-2" />
-          <span className="font-bold text-lg tracking-wide">BSAS Ops</span>
-        </div>
-        
-        <nav className="flex-1 py-6 px-4 space-y-1">
-          <Link
-            href="/dashboard"
-            className={`flex items-center px-3 py-2.5 rounded-lg transition-colors ${
-              isActive("/dashboard") ? "bg-gray-800 text-blue-400 font-medium" : "text-gray-400 hover:text-white hover:bg-gray-800/50"
-            }`}
-          >
-            <LayoutDashboard className="w-5 h-5 mr-3" />
-            Overview
-          </Link>
-          <Link
-            href="/dashboard/map"
-            className={`flex items-center px-3 py-2.5 rounded-lg transition-colors ${
-              isActive("/dashboard/map") ? "bg-gray-800 text-blue-400 font-medium" : "text-gray-400 hover:text-white hover:bg-gray-800/50"
-            }`}
-          >
-            <Map className="w-5 h-5 mr-3" />
-            Live Map
-          </Link>
-          <Link
-            href="/dashboard/incidents"
-            className={`flex items-center px-3 py-2.5 rounded-lg transition-colors ${
-              isActive("/dashboard/incidents") ? "bg-gray-800 text-blue-400 font-medium" : "text-gray-400 hover:text-white hover:bg-gray-800/50"
-            }`}
-          >
-            <FileText className="w-5 h-5 mr-3" />
-            Incidents
-          </Link>
-          <Link
-            href="/dashboard/alerts"
-            className={`flex items-center px-3 py-2.5 rounded-lg transition-colors ${
-              isActive("/dashboard/alerts") ? "bg-gray-800 text-blue-400 font-medium" : "text-gray-400 hover:text-white hover:bg-gray-800/50"
-            }`}
-          >
-            <AlertTriangle className="w-5 h-5 mr-3" />
-            Alerts Feed
-          </Link>
-          {user?.role === "ADMIN" && (
-            <Link
-              href="/dashboard/settings"
-              className={`flex items-center px-3 py-2.5 rounded-lg transition-colors ${
-                isActive("/dashboard/settings") ? "bg-gray-800 text-blue-400 font-medium" : "text-gray-400 hover:text-white hover:bg-gray-800/50"
-              }`}
-            >
-              <Settings className="w-5 h-5 mr-3" />
-              Settings
-            </Link>
-          )}
-        </nav>
-        
-        <div className="p-4 border-t border-gray-800">
-          <div className="flex items-center mb-4 px-2">
-            <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center font-bold text-sm">
-              {user?.email[0].toUpperCase()}
-            </div>
-            <div className="ml-3">
-              <p className="text-sm font-medium">{user?.email}</p>
-              <p className="text-xs text-gray-500">{user?.role}</p>
-            </div>
-          </div>
-          <button 
-            onClick={() => {
-              localStorage.removeItem("token");
-              router.push("/login");
-            }}
-            className="flex items-center w-full px-3 py-2 text-sm text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
-          >
-            <LogOut className="w-4 h-4 mr-2" />
-            Sign Out
-          </button>
-        </div>
-      </aside>
-
-      {/* Main Content */}
-      <main className="flex-1 flex flex-col h-screen overflow-hidden">
-        {children}
-      </main>
-    </div>
-  );
+  useEffect(() => {
+    if (user && !isOperator(user)) {
+      localStorage.removeItem('token');
+      router.replace('/login?reason=role');
+    }
+  }, [user, router]);
+  if (loading) return <LoadingState label="Checking your workspace access…" />;
+  if (error) return <ErrorState error={error} retry={refresh} />;
+  if (!user || !isOperator(user)) return <LoadingState label="Returning to sign in…" />;
+  const active = (href: string) => href === '/dashboard' ? pathname === href : pathname.startsWith(href);
+  const current = navigation.find(item => active(item.href));
+  return <div className="workspace">
+    <button aria-label="Close navigation" className={`backdrop ${menuOpen ? 'visible' : ''}`} onClick={() => setMenuOpen(false)} />
+    <aside className={`sidebar ${menuOpen ? 'open' : ''}`} id="workspace-navigation">
+      <Link href="/dashboard" className="brand" onClick={() => setMenuOpen(false)}><span className="brand-icon"><ShieldCheck size={25} /></span><span><strong>BSAS</strong><small>BORDER SAFETY ALERT SYSTEM</small></span></Link>
+      <p className="sidebar-label">WORKSPACE</p>
+      <nav aria-label="Main navigation">{navigation.map(({ href, label, icon: Icon }) => <Link key={href} href={href} className={`nav-link ${active(href) ? 'active' : ''}`} aria-current={active(href) ? 'page' : undefined} onClick={() => setMenuOpen(false)}><Icon size={17} strokeWidth={1.7} />{label}</Link>)}</nav>
+      <div className="sidebar-footer"><div className="profile"><span className="profile-avatar">{user.email[0].toUpperCase()}</span><div className="profile-copy"><p title={user.email}>{user.email}</p><small>{user.role}</small></div></div><button className="signout" onClick={() => { localStorage.removeItem('token'); router.replace('/login'); }}><LogOut size={15} />Sign out</button></div>
+    </aside>
+    <div className="workspace-main"><div className="workspace-topbar"><div className="topbar-title"><button className="menu-toggle" aria-label="Open navigation" aria-controls="workspace-navigation" aria-expanded={menuOpen} onClick={() => setMenuOpen(!menuOpen)}><Menu size={20} /></button><span>Safety operations</span><ChevronRight size={13} /><span style={{ color: '#172b45' }}>{current?.label || 'Incident details'}</span></div><span className="topbar-detail">Civilian safety workspace</span></div><main id="main-content">{children}</main></div>
+  </div>;
 }
+

@@ -3,14 +3,13 @@ import 'package:flutter/material.dart';
 import '../core/theme/bsas_colors.dart';
 import '../core/theme/bsas_spacing.dart';
 import '../core/theme/bsas_typography.dart';
-import '../core/widgets/status_badge.dart';
-import '../data/demo_data.dart';
+
+import '../models/boundary_model.dart';
 import '../models/gps_snapshot.dart';
 import '../models/geofence_result.dart';
 import '../models/geofence_state.dart';
-import '../widgets/gps_status_chip.dart';
-import 'map_screen.dart';
 import 'route_screen.dart';
+import 'map_screen.dart';
 import '../services/boundary_summary.dart';
 
 /// Redesigned comprehensive Safety Status screen.
@@ -20,12 +19,10 @@ import '../services/boundary_summary.dart';
 class SafetyScreen extends StatelessWidget {
   const SafetyScreen({
     super.key,
-    this.snapshot = DemoSafetySnapshot.placeholder,
     this.gps,
     this.geoFence = const GeoFenceResult(state: GeoFenceState.unknown),
   });
 
-  final DemoSafetySnapshot snapshot;
   final GpsSnapshot? gps;
   final GeoFenceResult geoFence;
 
@@ -42,223 +39,370 @@ class SafetyScreen extends StatelessWidget {
     final isWarning = state == GeoFenceState.warning || state == GeoFenceState.caution;
 
     final stateColor = BsasColors.forSafetyState(stateStr);
-    final stateBg = BsasColors.backgroundForState(stateStr, isDark: isDark);
     final stateIcon = BsasColors.iconForState(stateStr);
     final boundary = geoFence.nearestBoundary;
     final distance = geoFence.distanceToBoundaryMeters;
 
     return Scaffold(
       key: const Key('screen-safety'),
+      backgroundColor: isDark ? BsasColors.darkBackground : BsasColors.lightBackground,
       appBar: AppBar(
-        title: const Text('Safety Assessment', style: BsasTypography.heading),
+        title: Text('Safety Diagnostics', style: BsasTypography.title.copyWith(fontSize: 18)),
+        centerTitle: true,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
         actions: [
-          StatusBadge(
-            label: stateStr,
-            color: stateColor,
+          IconButton(
+            icon: const Icon(Icons.info_outline),
+            tooltip: 'Safety Info',
+            onPressed: () {},
           ),
-          const SizedBox(width: BsasSpacing.screenMargin),
+          const SizedBox(width: BsasSpacing.xs),
         ],
       ),
-      body: ListView(
+      body: SingleChildScrollView(
+        physics: const BouncingScrollPhysics(),
         padding: const EdgeInsets.symmetric(
           horizontal: BsasSpacing.screenMargin,
           vertical: BsasSpacing.md,
         ),
-        children: [
-          // 1. Authoritative Status Card
-          Container(
-            padding: BsasSpacing.cardInsets,
-            decoration: BoxDecoration(
-              color: stateBg,
-              borderRadius: BorderRadius.circular(BsasSpacing.cardRadius),
-              border: Border.all(color: stateColor, width: 1.5),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // 1. Signature Hero Status Dial
+            _buildStatusDial(stateStr, stateColor, stateIcon, isCritical, isWarning, state, isDark),
+            const SizedBox(height: BsasSpacing.xl),
+
+            // 2. Action Guidance Banner
+            _buildGuidanceBanner(stateColor, isCritical, isWarning, isDark),
+            const SizedBox(height: BsasSpacing.xl),
+            
+            Text(
+              'TELEMETRY READINGS',
+              style: BsasTypography.sectionHeading.copyWith(
+                color: isDark ? BsasColors.textLightMuted : BsasColors.textDarkMuted,
+              ),
             ),
+            const SizedBox(height: BsasSpacing.sm),
+
+            // 3. Structured Telemetry Cards
+            _buildMetricsGrid(boundary, distance, live, stateColor, isCritical, isWarning, isDark),
+            const SizedBox(height: BsasSpacing.xxl),
+
+            // 4. Action Buttons
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: BsasColors.primaryBlue,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: BsasSpacing.md),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(BsasSpacing.buttonRadius),
+                ),
+                elevation: 4,
+                shadowColor: BsasColors.primaryBlue.withValues(alpha: 0.5),
+              ),
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => RouteScreen(
+                      gps: live,
+                      loadBoundaries: OfflineBoundaryProvider().loadEnabledBoundaries,
+                    ),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.alt_route_rounded, size: 22),
+              label: Text('CALCULATE SAFE ROUTE', style: BsasTypography.label),
+            ),
+            const SizedBox(height: BsasSpacing.md),
+            OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: BsasSpacing.md),
+                side: BorderSide(color: isDark ? BsasColors.darkBorder : BsasColors.lightBorder, width: 1.5),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(BsasSpacing.buttonRadius),
+                ),
+              ),
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => MapScreen(
+                      gps: live,
+                      geoFence: geoFence,
+                    ),
+                  ),
+                );
+              },
+              icon: Icon(Icons.map_outlined, size: 22, color: isDark ? Colors.white : Colors.black),
+              label: Text('INSPECT ON LIVE MAP', style: BsasTypography.label.copyWith(
+                color: isDark ? Colors.white : Colors.black,
+              )),
+            ),
+            const SizedBox(height: BsasSpacing.xxl),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatusDial(
+    String stateStr,
+    Color stateColor,
+    IconData stateIcon,
+    bool isCritical,
+    bool isWarning,
+    GeoFenceState state,
+    bool isDark,
+  ) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: BsasSpacing.xxl, horizontal: BsasSpacing.md),
+      decoration: BoxDecoration(
+        color: isDark ? BsasColors.darkSurface : BsasColors.lightSurface,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: stateColor.withValues(alpha: 0.3),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: stateColor.withValues(alpha: 0.05),
+            blurRadius: 24,
+            spreadRadius: 4,
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          // Multi-layer glowing ring
+          Container(
+            width: 140,
+            height: 140,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: isDark ? BsasColors.darkBackground : BsasColors.lightBackground,
+              boxShadow: [
+                BoxShadow(
+                  color: stateColor.withValues(alpha: 0.2),
+                  blurRadius: 30,
+                  spreadRadius: 5,
+                ),
+                BoxShadow(
+                  color: stateColor.withValues(alpha: 0.1),
+                  blurRadius: 60,
+                  spreadRadius: 15,
+                ),
+              ],
+            ),
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                SizedBox(
+                  width: 140,
+                  height: 140,
+                  child: CircularProgressIndicator(
+                    value: 1.0,
+                    strokeWidth: 4,
+                    color: stateColor.withValues(alpha: 0.3),
+                  ),
+                ),
+                SizedBox(
+                  width: 110,
+                  height: 110,
+                  child: CircularProgressIndicator(
+                    value: 0.75, // Simulate active scan
+                    strokeWidth: 2,
+                    color: stateColor,
+                    strokeCap: StrokeCap.round,
+                  ),
+                ),
+                Icon(
+                  stateIcon,
+                  size: 52,
+                  color: stateColor,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: BsasSpacing.xl),
+          Text(
+            stateStr,
+            style: BsasTypography.display.copyWith(
+              fontSize: 24,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 2.5,
+              color: stateColor,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            isCritical
+                ? 'Perimeter breach detected'
+                : (isWarning
+                    ? 'Approaching monitored area'
+                    : (state == GeoFenceState.safe
+                        ? 'Authorized safe zone'
+                        : 'Acquiring satellite fix...')),
+            style: BsasTypography.body.copyWith(
+              fontSize: 14,
+              color: isDark ? BsasColors.textLightSecondary : BsasColors.textDarkSecondary,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGuidanceBanner(Color stateColor, bool isCritical, bool isWarning, bool isDark) {
+    return Container(
+      padding: const EdgeInsets.all(BsasSpacing.md),
+      decoration: BoxDecoration(
+        color: stateColor.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: stateColor.withValues(alpha: 0.3),
+          width: 1,
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.shield_outlined, size: 24, color: stateColor),
+          const SizedBox(width: BsasSpacing.sm),
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(stateIcon, color: stateColor, size: 24),
-                        const SizedBox(width: BsasSpacing.sm),
-                        Text(
-                          state.label,
-                          style: BsasTypography.display.copyWith(
-                            fontSize: 20,
-                            color: stateColor,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ],
-                    ),
-                    GpsStatusChip(state: live.fix),
-                  ],
+                Text(
+                  'DIRECTIVE',
+                  style: BsasTypography.sectionHeading.copyWith(color: stateColor),
                 ),
-                const SizedBox(height: BsasSpacing.sm),
+                const SizedBox(height: 4),
                 Text(
                   isCritical
-                      ? 'Immediate Action Required: Your position is inside or directly adjacent to a restricted perimeter.'
+                      ? 'Boundary breach detected. Reverse heading immediately along the recommended safe corridor.'
                       : (isWarning
-                          ? 'Elevated Proximity: You have entered the buffer zone. Movement heading is being continuously evaluated.'
-                          : 'Normal Status: Safe civilian clearance maintained across all configured sectors.'),
+                          ? 'You are approaching a monitored boundary. Stay alert and prepare to alter course if necessary.'
+                          : 'No immediate action required. Maintain normal operations.'),
                   style: BsasTypography.body.copyWith(
-                    color: isDark ? BsasColors.textLightPrimary : BsasColors.textDarkPrimary,
+                    fontSize: 13.5,
                     height: 1.4,
+                    color: isDark ? BsasColors.textLightPrimary : BsasColors.textDarkPrimary,
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: BsasSpacing.md),
-
-          // 2. Telemetry & Boundary Intelligence
-          Card(
-            margin: EdgeInsets.zero,
-            child: Padding(
-              padding: BsasSpacing.cardInsets,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'PERIMETER & SENSOR TELEMETRY',
-                    style: BsasTypography.sectionHeading.copyWith(
-                      color: BsasColors.primaryBlue,
-                      fontSize: 12,
-                    ),
-                  ),
-                  const SizedBox(height: BsasSpacing.md),
-                  _telemetryRow('Nearest Sector', boundary?.name ?? 'Sector Buffer Area'),
-                  const Divider(height: BsasSpacing.md),
-                  _telemetryRow('Perimeter Classification', boundary?.type.toUpperCase() ?? 'PROTECTED'),
-                  const Divider(height: BsasSpacing.md),
-                  _telemetryRow(
-                    'Demarcation Distance',
-                    distance != null ? '${distance.toStringAsFixed(1)} meters' : 'Calculating fix...',
-                  ),
-                  const Divider(height: BsasSpacing.md),
-                  _telemetryRow(
-                    'Movement Vector',
-                    geoFence.movingTowardBoundary
-                        ? 'Converging toward perimeter'
-                        : (distance != null ? 'Diverging / parallel transit' : 'Stationary'),
-                  ),
-                  if (geoFence.directionToBoundaryDegrees != null) ...[
-                    const Divider(height: BsasSpacing.md),
-                    _telemetryRow(
-                      'Compass Bearing to Perimeter',
-                      '${geoFence.directionToBoundaryDegrees!.toStringAsFixed(0)}°',
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: BsasSpacing.md),
-
-          // 3. Dual-Engine Assessment Rationale
-          Card(
-            margin: EdgeInsets.zero,
-            child: Padding(
-              padding: BsasSpacing.cardInsets,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      const Icon(Icons.analytics_outlined, size: 20, color: BsasColors.primaryBlue),
-                      const SizedBox(width: BsasSpacing.sm),
-                      Text(
-                        'DUAL ENGINE EVALUATION',
-                        style: BsasTypography.sectionHeading.copyWith(
-                          color: BsasColors.primaryBlue,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: BsasSpacing.sm),
-                  Text(
-                    '• Deterministic Engine: Real-time point-in-polygon & haversine closest-point mathematical verification against on-device SQLite boundary vectors.\n'
-                    '• Machine Learning Model: On-device LSTM (5-step temporal sequence) fused with Random Forest risk classification via RobustScaler normalization.\n'
-                    '• Risk Fusion: The authoritative higher risk state dominates to prevent false negatives.',
-                    style: BsasTypography.body.copyWith(
-                      fontSize: 13,
-                      height: 1.45,
-                      color: isDark ? BsasColors.textLightSecondary : BsasColors.textDarkSecondary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: BsasSpacing.md),
-
-          // 4. Action Buttons
-          Row(
-            children: [
-              Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => RouteScreen(
-                          gps: live,
-                          loadBoundaries: OfflineBoundaryProvider().loadEnabledBoundaries,
-                        ),
-                      ),
-                    );
-                  },
-                  icon: const Icon(Icons.alt_route_rounded, size: 18),
-                  label: const Text('CALCULATE SAFE ROUTE'),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: BsasSpacing.sm),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => MapScreen(
-                          gps: live,
-                          geoFence: geoFence,
-                        ),
-                      ),
-                    );
-                  },
-                  icon: const Icon(Icons.map_outlined, size: 18),
-                  label: const Text('INSPECT ON LIVE MAP'),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: BsasSpacing.lg),
         ],
       ),
     );
   }
 
-  Widget _telemetryRow(String label, String value) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  Widget _buildMetricsGrid(
+    BoundaryModel? boundary, 
+    double? distance, 
+    GpsSnapshot live, 
+    Color stateColor, 
+    bool isCritical, 
+    bool isWarning, 
+    bool isDark
+  ) {
+    return Column(
       children: [
-        Text(label, style: BsasTypography.bodyMuted),
-        const SizedBox(width: BsasSpacing.sm),
-        Flexible(
-          child: Text(
-            value,
-            style: BsasTypography.title.copyWith(fontSize: 13, fontWeight: FontWeight.w600),
-            textAlign: TextAlign.end,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
+        Row(
+          children: [
+            Expanded(
+              child: _buildMetricCard(
+                'Distance to Boundary',
+                distance != null ? '${(distance / 1000).toStringAsFixed(1)} km' : '--',
+                Icons.straighten,
+                highlightColor: stateColor,
+                isDark: isDark,
+              ),
+            ),
+            const SizedBox(width: BsasSpacing.sm),
+            Expanded(
+              child: _buildMetricCard(
+                'Risk Level',
+                isCritical ? 'Critical' : (isWarning ? 'Moderate' : 'Low'),
+                Icons.warning_amber_rounded,
+                highlightColor: stateColor,
+                isDark: isDark,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: BsasSpacing.sm),
+        Row(
+          children: [
+            Expanded(
+              child: _buildMetricCard(
+                'Current Sector',
+                boundary?.name ?? 'Unknown',
+                Icons.explore,
+                isDark: isDark,
+              ),
+            ),
+            const SizedBox(width: BsasSpacing.sm),
+            Expanded(
+              child: _buildMetricCard(
+                'GPS Accuracy',
+                live.location?.accuracy != null ? '±${live.location!.accuracy!.toStringAsFixed(0)} m' : '--',
+                Icons.gps_fixed,
+                isDark: isDark,
+              ),
+            ),
+          ],
         ),
       ],
     );
   }
+
+  Widget _buildMetricCard(String label, String value, IconData icon, {Color? highlightColor, required bool isDark}) {
+    return Container(
+      padding: const EdgeInsets.all(BsasSpacing.md),
+      decoration: BoxDecoration(
+        color: isDark ? BsasColors.darkSurface : BsasColors.lightSurface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark ? BsasColors.darkBorder : BsasColors.lightBorder,
+          width: 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 16, color: highlightColor ?? BsasColors.primaryBlue),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  label,
+                  style: BsasTypography.caption.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: isDark ? BsasColors.textLightMuted : BsasColors.textDarkMuted,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: BsasSpacing.sm),
+          Text(
+            value,
+            style: BsasTypography.title.copyWith(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: highlightColor ?? (isDark ? BsasColors.textLightPrimary : BsasColors.textDarkPrimary),
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
 }
+

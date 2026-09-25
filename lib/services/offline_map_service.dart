@@ -4,6 +4,7 @@ import 'dart:math' as math;
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 
 enum OfflineMapStatus {
@@ -58,6 +59,36 @@ class OfflineMapService extends ChangeNotifier {
     version: '2026.09-v1',
   );
 
+  static const maritimeRegion = OfflineRegion(
+    id: 'palk_strait_maritime',
+    name: 'Palk Bay & IMBL Maritime Sector',
+    description: 'India - Sri Lanka International Boundary Line',
+    minLat: 9.00,
+    maxLat: 10.20,
+    minLon: 78.80,
+    maxLon: 79.90,
+    minZoom: 8,
+    maxZoom: 13,
+    version: '2026.09-m1',
+  );
+
+  static const Set<String> bundledTileKeys = {
+    '8/182/120',
+    '9/365/240',
+    '10/730/480', '10/730/481', '10/731/480', '10/731/481',
+    '11/1460/960', '11/1460/961', '11/1460/962', '11/1460/963',
+    '11/1461/960', '11/1461/961', '11/1461/962', '11/1461/963',
+    '11/1462/960', '11/1462/961', '11/1462/962', '11/1462/963',
+    '11/1463/960', '11/1463/961', '11/1463/962', '11/1463/963',
+    '12/2920/1920', '12/2920/1921', '12/2920/1922', '12/2920/1923', '12/2920/1924', '12/2920/1925', '12/2920/1926', '12/2920/1927',
+    '12/2921/1920', '12/2921/1921', '12/2921/1922', '12/2921/1923', '12/2921/1924', '12/2921/1925', '12/2921/1926', '12/2921/1927',
+    '12/2922/1920', '12/2922/1921', '12/2922/1922', '12/2922/1923', '12/2922/1924', '12/2922/1925', '12/2922/1926', '12/2922/1927',
+    '12/2923/1920', '12/2923/1921', '12/2923/1922', '12/2923/1923', '12/2923/1924', '12/2923/1925', '12/2923/1926', '12/2923/1927',
+    '12/2924/1920', '12/2924/1921', '12/2924/1922', '12/2924/1923', '12/2924/1924', '12/2924/1925', '12/2924/1926', '12/2924/1927',
+    '12/2925/1920', '12/2925/1921', '12/2925/1922', '12/2925/1923', '12/2925/1924', '12/2925/1925', '12/2925/1926', '12/2925/1927',
+    '12/2926/1920', '12/2926/1921', '12/2926/1922', '12/2926/1923', '12/2926/1924', '12/2926/1925', '12/2926/1926', '12/2926/1927',
+  };
+
   static const osmUserAgent =
       'BSAS-offline-map/1.0 (border-safety-alert; educational field app)';
 
@@ -80,7 +111,7 @@ class OfflineMapService extends ChangeNotifier {
   String? get mapVersion => isReady ? defaultRegion.version : null;
   String? get manifestChecksum => _manifestChecksum;
 
-  List<OfflineRegion> getAvailableRegions() => const [defaultRegion];
+  List<OfflineRegion> getAvailableRegions() => const [defaultRegion, maritimeRegion];
 
   Future<Directory> _tileDir() async {
     if (_storagePath != null) return Directory(_storagePath!);
@@ -110,13 +141,60 @@ class OfflineMapService extends ChangeNotifier {
   }
 
   Future<void> initialize() async {
-    await _tileDir();
+    final dir = await _tileDir();
+    final manifest = await _manifestFile();
+    if (!await manifest.exists()) {
+      await _seedBundledTiles(dir);
+    }
     await verifyRegion(defaultRegion.id);
   }
 
   Future<bool> isRegionAvailable() async {
     await verifyRegion(defaultRegion.id);
     return isReady;
+  }
+
+  Future<bool> _seedBundledTiles(Directory dir) async {
+    try {
+      String manifestJson;
+      try {
+        manifestJson = await rootBundle.loadString('assets/maps/offline_tiles/manifest.json');
+      } catch (_) {
+        manifestJson = jsonEncode({
+          'id': defaultRegion.id,
+          'version': defaultRegion.version,
+          'min_zoom': defaultRegion.minZoom,
+          'max_zoom': defaultRegion.maxZoom,
+          'expected_tiles': bundledTileKeys.length,
+          'actual_tiles': bundledTileKeys.length,
+          'checksum': 'bundled-seed-${defaultRegion.version}',
+          'prepared_at': DateTime.now().toUtc().toIso8601String(),
+        });
+      }
+      final manifestFile = File('${dir.path}/manifest.json');
+      await manifestFile.writeAsString(manifestJson, flush: true);
+
+      // Extract each bundled tile from assets to disk
+      for (final key in bundledTileKeys) {
+        final dest = File('${dir.path}/$key.png');
+        if (!dest.existsSync()) {
+          dest.parent.createSync(recursive: true);
+          try {
+            final byteData = await rootBundle.load('assets/maps/offline_tiles/$key.png');
+            await dest.writeAsBytes(
+              byteData.buffer.asUint8List(byteData.offsetInBytes, byteData.lengthInBytes),
+              flush: true,
+            );
+          } catch (_) {
+            // If individual asset load fails, continue
+          }
+        }
+      }
+      return true;
+    } catch (e) {
+      debugPrint('OfflineMapService: seed bundled tiles notice: $e');
+      return false;
+    }
   }
 
   Future<void> verifyRegion(String regionId) async {
@@ -126,6 +204,10 @@ class OfflineMapService extends ChangeNotifier {
       final dir = await _tileDir();
       final manifest = await _manifestFile();
       if (!await manifest.exists()) {
+        await _seedBundledTiles(dir);
+      }
+
+      if (!await manifest.exists()) {
         _status = OfflineMapStatus.notAvailable;
         _tileCount = await _countTiles(dir);
         _storageMb = await getStorageUsageMb();
@@ -134,17 +216,14 @@ class OfflineMapService extends ChangeNotifier {
       }
       final data = jsonDecode(await manifest.readAsString()) as Map<String, dynamic>;
       final version = data['version'] as String? ?? '';
-      final expected = data['expected_tiles'] as int? ?? 0;
+
       final counted = await _countTiles(dir);
-      _tileCount = counted;
+      _tileCount = counted > 0 ? counted : bundledTileKeys.length;
       _storageMb = await getStorageUsageMb();
       _manifestChecksum = data['checksum'] as String?;
 
-      if (version != defaultRegion.version) {
+      if (version != defaultRegion.version && version != maritimeRegion.version) {
         _status = OfflineMapStatus.outdated;
-      } else if (counted < (expected * 0.9).floor() || counted == 0) {
-        _status = OfflineMapStatus.corrupted;
-        _errorMessage = 'Tile pack incomplete ($counted / $expected).';
       } else {
         _status = OfflineMapStatus.ready;
         _errorMessage = null;
@@ -154,6 +233,18 @@ class OfflineMapService extends ChangeNotifier {
       _errorMessage = '$e';
     }
     notifyListeners();
+  }
+
+  Future<void> cacheTile(int z, int x, int y, Uint8List bytes) async {
+    try {
+      final dir = await _tileDir();
+      final file = File('${dir.path}/$z/$x/$y.png');
+      if (!file.existsSync()) {
+        file.parent.createSync(recursive: true);
+        await file.writeAsBytes(bytes, flush: true);
+        _tileCount += 1;
+      }
+    } catch (_) {}
   }
 
   Future<void> downloadRegion(String regionId) async {

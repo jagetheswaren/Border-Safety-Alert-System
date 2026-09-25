@@ -15,7 +15,8 @@ class RiskEngine {
     // CRUCIAL RULE: Never downgrade an INSIDE or CRITICAL state
     if (deterministic.state == GeoFenceState.insideRestrictedArea ||
         deterministic.state == GeoFenceState.critical ||
-        deterministic.state == GeoFenceState.unknown) {
+        deterministic.state == GeoFenceState.unknown ||
+        deterministic.state == GeoFenceState.gpsUnavailable) {
       return deterministic;
     }
 
