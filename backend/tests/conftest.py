@@ -12,11 +12,21 @@ os.environ['SECRET_KEY'] = 'isolated-bsas-test-secret-never-use-in-production'
 os.environ['DATABASE_URL'] = os.getenv('BSAS_TEST_DATABASE_URL', 'sqlite:///' + (Path(_temporary.name) / 'test.db').as_posix())
 
 from fastapi.testclient import TestClient
+from sqlalchemy import event
 from app.main import app
 from app.database import Base, engine, SessionLocal, init_db
 from app.models.user import User
 from app.security import get_password_hash
 from app.api.auth import create_access_token
+
+
+if engine.dialect.name == 'sqlite':
+    @event.listens_for(engine, 'connect')
+    def enable_foreign_keys(connection, _):
+        # Exercise the same device/user foreign keys enforced by PostgreSQL.
+        cursor = connection.cursor()
+        cursor.execute('PRAGMA foreign_keys=ON')
+        cursor.close()
 
 
 def pytest_sessionfinish(session, exitstatus):

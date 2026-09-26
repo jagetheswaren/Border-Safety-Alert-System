@@ -1,5 +1,10 @@
 from datetime import timedelta
 from app.api.auth import create_access_token
+from app.database import SessionLocal
+from app.models.alert import Alert
+from app.models.device import Device
+from app.models.location import LocationBreadcrumb
+from app.models.sync import SafetyEvent, SyncReceipt
 
 
 def test_protected_routes_reject_missing_and_invalid_tokens(anonymous):
@@ -44,5 +49,28 @@ def test_sync_replay_is_idempotent_and_conflicting_payload_rejected(client):
         assert result.json()['acknowledged_ids'] == ['event-1']
     status = client.get('/api/v1/sync/status/test-device').json()
     assert status['synced_events'] == status['total_breadcrumbs'] == 1
+    with SessionLocal() as db:
+        assert [alert.id for alert in db.query(Alert).all()] == ['event-1']
+
+    # A conflict after a new event must roll back all of that batch's writes.
+    new_event = {**event, 'event_id': 'event-2'}
     event['latitude'] = 11.0
+    batch['events'] = [new_event, event]
     assert client.post('/api/v1/sync/batch', json=batch).status_code == 409
+    with SessionLocal() as db:
+        assert db.query(Device).count() == 1
+        assert [row.event_id for row in db.query(SafetyEvent).all()] == ['event-1']
+        assert db.query(LocationBreadcrumb).count() == 1
+        assert [row.id for row in db.query(Alert).all()] == ['event-1']
+        assert db.query(SyncReceipt).count() == 2
+
+    # Correcting the conflict allows both the old event and the new event to sync.
+    event['latitude'] = 10.0
+    for _ in range(2):
+        result = client.post('/api/v1/sync/batch', json=batch)
+        assert result.status_code == 200, result.text
+        assert result.json()['acknowledged_ids'] == ['event-2', 'event-1']
+    status = client.get('/api/v1/sync/status/test-device').json()
+    assert status['synced_events'] == status['total_breadcrumbs'] == 2
+    with SessionLocal() as db:
+        assert {row.id for row in db.query(Alert).all()} == {'event-1', 'event-2'}

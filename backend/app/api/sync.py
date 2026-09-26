@@ -30,6 +30,8 @@ def sync_batch(request: SyncBatchRequest, db: Session = Depends(get_db),
         if device is None:
             device = Device(device_identifier=request.device_id, user_id=user.id)
             db.add(device)
+            # Breadcrumbs reference devices.id, not the client's device identifier.
+            # Flush the parent first; SessionLocal has autoflush disabled.
             db.flush()
         if not device.is_active:
             raise HTTPException(403, 'Device is disabled')
@@ -42,6 +44,7 @@ def sync_batch(request: SyncBatchRequest, db: Session = Depends(get_db),
             if existing:
                 if existing.device_id != device.id or existing.user_id != user.id or existing.payload_sha256 != digest:
                     raise HTTPException(409, 'Event ID conflicts with previously stored data')
+                # The event and its side effects committed together; only acknowledge retries.
                 acknowledgements.append(item.event_id)
                 continue
             db.add(SafetyEvent(event_id=item.event_id, device_id=device.id, user_id=user.id,

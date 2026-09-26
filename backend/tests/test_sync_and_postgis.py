@@ -6,6 +6,12 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 
 from fastapi.testclient import TestClient
 from app.main import app
+from app.database import SessionLocal
+from app.models.alert import Alert
+from app.models.device import Device
+from app.models.location import LocationBreadcrumb
+from app.models.sync import SafetyEvent, SyncReceipt
+from app.models.user import User
 
 
 
@@ -42,20 +48,57 @@ def test_batch_sync_pipeline(client):
         ]
     }
 
-    # Post batch sync
+    with SessionLocal() as db:
+        assert db.query(Device).filter_by(device_identifier=device_id).count() == 0
+
+    # A first upload must register the device before inserting its breadcrumbs.
     res = client.post("/api/v1/sync/batch", json=sync_payload)
     assert res.status_code == 200, res.text
     data = res.json()
     assert data["status"] == "SUCCESS"
     assert data["synced_count"] == 2
-    assert len(data["acknowledged_ids"]) == 2
+    event_ids = [event['event_id'] for event in sync_payload['events']]
+    assert data["acknowledged_ids"] == event_ids
+
+    with SessionLocal() as db:
+        device = db.query(Device).filter_by(device_identifier=device_id).one()
+        user = db.query(User).filter_by(email='operator@example.test').one()
+        assert device.id != device_id
+        assert device.user_id == user.id
+        events = db.query(SafetyEvent).all()
+        breadcrumbs = db.query(LocationBreadcrumb).all()
+        alerts = db.query(Alert).all()
+        receipt = db.get(SyncReceipt, data['receipt_id'])
+        assert {event.event_id for event in events} == set(event_ids)
+        assert len(breadcrumbs) == 2
+        assert [alert.id for alert in alerts] == [event_ids[1]]
+        assert receipt is not None
+        for row in [*events, *breadcrumbs, *alerts, receipt]:
+            assert row.device_id == device.id
+            assert row.user_id == user.id
+        breadcrumb_ids = {row.id for row in breadcrumbs}
+
+    # Retrying after a lost response acknowledges every event without new rows.
+    sync_payload['client_timestamp'] = '2026-09-25T14:31:00Z'
+    retry = client.post("/api/v1/sync/batch", json=sync_payload)
+    assert retry.status_code == 200, retry.text
+    assert retry.json()['status'] == 'SUCCESS'
+    assert retry.json()['synced_count'] == 2
+    assert retry.json()['acknowledged_ids'] == event_ids
+    with SessionLocal() as db:
+        assert db.query(Device).count() == 1
+        assert db.query(SafetyEvent).count() == 2
+        assert {row.id for row in db.query(LocationBreadcrumb).all()} == breadcrumb_ids
+        assert [row.id for row in db.query(Alert).all()] == [event_ids[1]]
+        assert db.query(SyncReceipt).count() == 2
 
     # Check sync status
     status_res = client.get(f"/api/v1/sync/status/{device_id}")
     assert status_res.status_code == 200
     status_data = status_res.json()
     assert status_data["device_id"] == device_id
-    assert status_data["synced_events"] >= 2
+    assert status_data["synced_events"] == 2
+    assert status_data["total_breadcrumbs"] == 2
 
 def test_alerts_bulk_upload(client):
     device_id = f"dev-bulk-{uuid.uuid4().hex[:6]}"
