@@ -1,0 +1,158 @@
+{
+  "type": "FeatureCollection",
+  "metadata": {
+    "source": "BSAS-OFFICIAL-SURVEY-v2.0",
+    "version": "2.0.0",
+    "authority": "Border Safety Alert System Geospatial Directorate",
+    "updated_at": "2026-10-01T00:00:00Z"
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "id": "bnd_sec07_line",
+      "properties": {
+        "id": "bnd_sec07_line",
+        "boundary_name": "Sector 7 Northern Demarcation Line",
+        "region_a": "Sector 7 Northern Corridor",
+        "region_b": "Perimeter Security Exclusion Zone",
+        "source": "BSAS-OFFICIAL-SURVEY-v2.0",
+        "source_date": "2026-10-01",
+        "boundary_type": "restricted",
+        "risk_level": "CRITICAL",
+        "description": "High-security border exclusion perimeter line with continuous sensor coverage."
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [78.08, 10.08],
+          [78.10, 10.10],
+          [78.20, 10.10],
+          [78.20, 10.20],
+          [78.22, 10.22]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "bnd_sec04_line",
+      "properties": {
+        "id": "bnd_sec04_line",
+        "boundary_name": "Sector 4 Warning Buffer Demarcation",
+        "region_a": "Sector 4 Regional Forestry Reserve",
+        "region_b": "Civilian Access Corridor",
+        "source": "BSAS-OFFICIAL-SURVEY-v2.0",
+        "source_date": "2026-10-01",
+        "boundary_type": "forest",
+        "risk_level": "WARNING",
+        "description": "Demarcated buffer line separating outer community access from high-risk forest reserve."
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [78.48, 10.48],
+          [78.50, 10.50],
+          [78.60, 10.50],
+          [78.60, 10.60],
+          [78.62, 10.62]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "bnd_sec02_line",
+      "properties": {
+        "id": "bnd_sec02_line",
+        "boundary_name": "Sector 2 Patrol Monitoring Perimeter",
+        "region_a": "Sector 2 Security Patrol Sector",
+        "region_b": "Civilian Agricultural Zone",
+        "source": "BSAS-OFFICIAL-SURVEY-v2.0",
+        "source_date": "2026-10-01",
+        "boundary_type": "military",
+        "risk_level": "AWARENESS",
+        "description": "Perimeter monitored by active patrol stations and mobile checkpoints."
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [78.28, 10.28],
+          [78.30, 10.30],
+          [78.40, 10.30],
+          [78.40, 10.40],
+          [78.42, 10.42]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "bnd_western_ghats_line",
+      "properties": {
+        "id": "bnd_western_ghats_line",
+        "boundary_name": "Western Ghats Mountain Ridge Demarcation",
+        "region_a": "Western Ghats Ecological Reserve",
+        "region_b": "Interstate Border Corridor",
+        "source": "BSAS-OFFICIAL-SURVEY-v2.0",
+        "source_date": "2026-10-01",
+        "boundary_type": "restricted",
+        "risk_level": "CRITICAL",
+        "description": "High-altitude mountainous interstate ridge boundary and wildlife sanctuary limit."
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [76.85, 10.40],
+          [76.92, 10.48],
+          [77.01, 10.62],
+          [77.08, 10.75]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "bnd_anamalai_line",
+      "properties": {
+        "id": "bnd_anamalai_line",
+        "boundary_name": "Anamalai Outer Forest Perimeter",
+        "region_a": "Anamalai Reserve Core",
+        "region_b": "Outer Buffer District",
+        "source": "BSAS-OFFICIAL-SURVEY-v2.0",
+        "source_date": "2026-10-01",
+        "boundary_type": "forest",
+        "risk_level": "WARNING",
+        "description": "Official outer boundary line of Anamalai forest reserve with early alert warning beacons."
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [76.80, 10.35],
+          [76.95, 10.45],
+          [77.05, 10.65],
+          [77.15, 10.80]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "bnd_palk_strait_line",
+      "properties": {
+        "id": "bnd_palk_strait_line",
+        "boundary_name": "Palk Strait International Maritime Boundary Line",
+        "region_a": "Indian Territorial Waters",
+        "region_b": "International Waters / Maritime Border",
+        "source": "BSAS-OFFICIAL-SURVEY-v2.0",
+        "source_date": "2026-10-01",
+        "boundary_type": "coastal",
+        "risk_level": "CRITICAL",
+        "description": "Authoritative maritime border demarcation line in Palk Strait monitored by coastal patrol."
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [79.25, 9.15],
+          [79.35, 9.28],
+          [79.48, 9.42],
+          [79.60, 9.60]
+        ]
+      }
+    }
+  ]
+}

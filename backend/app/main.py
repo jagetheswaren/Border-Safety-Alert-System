@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 
-from app.api import users, zones, incidents, auth, alerts, dashboard, events, geofence, sync
+from app.api import users, zones, incidents, auth, alerts, dashboard, events, geofence, sync, borders, locations
 from app.database import engine, init_db, get_db, is_postgres
 from app.config import settings
 
@@ -36,12 +36,21 @@ app.add_middleware(
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
 app.include_router(users.router, prefix="/api/v1/users", tags=["users"])
 app.include_router(zones.router, prefix="/api/v1/zones", tags=["zones"])
+app.include_router(borders.router, prefix="/api/v1/borders", tags=["borders"])
+app.include_router(locations.router, prefix="/api/v1/locations", tags=["locations"])
 app.include_router(incidents.router, prefix="/api/v1/incidents", tags=["incidents"])
 app.include_router(alerts.router, prefix="/api/v1/alerts", tags=["alerts"])
 app.include_router(dashboard.router, prefix="/api/v1/dashboard", tags=["dashboard"])
 app.include_router(events.router, prefix="/api/v1/events", tags=["events"])
 app.include_router(geofence.router, prefix="/api/v1/geofence", tags=["geofence"])
 app.include_router(sync.router, prefix="/api/v1/sync", tags=["sync"])
+
+# Route aliases without /api/v1 for standard REST client compatibility
+app.include_router(borders.router, prefix="/borders", tags=["borders-alias"], include_in_schema=False)
+app.include_router(zones.router, prefix="/zones", tags=["zones-alias"], include_in_schema=False)
+app.include_router(locations.router, prefix="/locations", tags=["locations-alias"], include_in_schema=False)
+app.include_router(incidents.router, prefix="/incidents", tags=["incidents-alias"], include_in_schema=False)
+app.include_router(alerts.router, prefix="/alerts", tags=["alerts-alias"], include_in_schema=False)
 
 @app.get("/health")
 @app.get("/api/v1/health")

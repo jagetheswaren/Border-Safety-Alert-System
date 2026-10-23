@@ -1,0 +1,1059 @@
+IMPORTANT: USE VERY FEW TOKENS.
+
+Do not give long explanations.
+Do not repeat the plan.
+Do not summarize every file.
+Do not describe obvious steps.
+Do not ask me if you should continue.
+Do not send progress essays.
+
+Spend tokens on:
+- inspecting code
+- editing files
+- running commands
+- testing
+- fixing errors
+- building
+- installing
+- verifying on the phone
+
+Use only this short progress format:
+
+PHASE:
+DONE:
+TEST:
+STATUS:
+NEXT:
+
+Each field should be 1 short line.
+
+Example:
+
+PHASE: Map Fix
+DONE: Replaced blocked OSM tile source.
+TEST: Map renders on Samsung.
+STATUS: PASS
+NEXT: Verify Hybrid + GPS.
+
+If something fails:
+
+PHASE: Offline Map
+DONE: Cache validation added.
+TEST: Offline restart test failed.
+STATUS: FAIL
+NEXT: Fix local tile loading.
+
+Do not explain unless I explicitly ask.
+
+Continue automatically until all possible BSAS features are checked and fixed.
+
+Priority:
+IMPLEMENT > TEST > FIX > REPORT
+
+Use minimum output tokens and maximum actual work.
+
+CHECK THE ENTIRE BSAS PROJECT NOW AND MAKE EVERYTHING ACTUALLY WORK.
+
+Do not give me another plan.
+Do not only inspect.
+Do not only report.
+Do not say PASS without real execution.
+
+I want you to:
+
+CHECK → FIX → BUILD → INSTALL → OPEN → TEST → FIX AGAIN
+
+until every possible feature is genuinely working.
+
+USE FEWER TOKENS.
+
+After each phase reply only:
+
+PHASE:
+DONE:
+TEST:
+STATUS:
+NEXT:
+
+Then continue automatically.
+
+==================================================
+1. FULL PROJECT CHECK
+==================================================
+
+Inspect the complete existing BSAS project.
+
+Check:
+
+Flutter mobile app
+GPS/GNSS
+Location
+Map
+Normal map
+Satellite map
+Hybrid map
+Offline map
+Boundaries
+Geofence
+ML
+LSTM
+Random Forest
+RiskEngine
+Alerts
+Notifications
+Sound
+Vibration
+TTS
+SQLite
+History
+Settings
+Sync
+FastAPI
+PostgreSQL
+PostGIS
+Authentication
+Authorization
+Next.js dashboard
+AI Chat
+Ollama
+Qwen3
+Diagnostics
+Android release build
+
+Do NOT create a new project.
+
+Preserve working code.
+
+==================================================
+2. CURRENT MAP IS BROKEN
+==================================================
+
+The current phone screenshots show:
+
+403
+Access blocked
+OpenStreetMap tile usage blocked
+
+Therefore MAP IS CURRENTLY NOT PASS.
+
+Fix this first.
+
+Do NOT bypass the OpenStreetMap block.
+
+Do NOT continue bulk downloading public OSM tiles.
+
+Replace the broken online production map source.
+
+==================================================
+3. FULL REAL ONLINE MAP
+==================================================
+
+I want a complete real map inside BSAS.
+
+Implement:
+
+NORMAL
+SATELLITE
+HYBRID
+
+For the online full map use the proper map provider/configuration.
+
+If using Google Maps Flutter:
+
+google_maps_flutter
+
+Support:
+
+MapType.normal
+MapType.satellite
+MapType.hybrid
+
+Default:
+HYBRID
+
+I want:
+
+roads
+road names
+town names
+village names
+places
+POIs
+satellite imagery
+
+Use real provider data.
+
+Do not hardcode place names.
+
+If a Google Maps API key is required and not configured:
+
+finish all code/configuration possible
+
+then clearly show:
+
+BLOCKED: GOOGLE MAPS API KEY REQUIRED
+
+Do not fake the map.
+
+==================================================
+4. REAL GPS / LOCATION
+==================================================
+
+Verify the real phone GNSS is working.
+
+Use:
+
+Android GNSS
+→ GpsService
+→ LocationRepository
+→ Map
+→ Geofence
+→ RiskEngine
+
+Check actual:
+
+latitude
+longitude
+accuracy
+speed
+heading
+altitude
+timestamp
+
+No fake coordinates.
+
+No default coordinates.
+
+States must be real:
+
+PERMISSION_REQUIRED
+GPS_DISABLED
+ACQUIRING
+LOCKED
+POOR_ACCURACY
+ERROR
+
+==================================================
+5. REAL-TIME LOCATION
+==================================================
+
+Everything must update automatically in real time.
+
+When GPS changes:
+
+location marker updates
+boundary distance updates
+geofence updates
+ML features update
+RiskEngine reevaluates
+Home updates
+Safety screen updates
+Map updates
+Diagnostics updates
+AI context updates
+
+No manual refresh.
+
+Use ONE authoritative location state.
+
+==================================================
+6. MAP CONTROLS
+==================================================
+
+Verify physically:
+
+pan
+zoom
+recenter
+follow user
+free mode
+compass
+layers
+
+Show current user location from actual GPS.
+
+No random marker.
+
+==================================================
+7. BOUNDARY + GEOFENCE
+==================================================
+
+Verify BoundaryRepository uses real verified geometry.
+
+Do not present synthetic demo boundaries as real data.
+
+Use:
+
+Real GPS
+→ BoundaryRepository
+→ GeoFenceService
+
+Calculate actual:
+
+inside
+outside
+near boundary
+approaching
+crossing
+distance
+
+Do NOT always return SAFE.
+
+If verified boundary data does not exist:
+
+show:
+
+BOUNDARY DATA UNAVAILABLE
+
+==================================================
+8. ML
+==================================================
+
+Verify the actual existing model pipeline.
+
+Known LSTM shape previously verified:
+
+[1,5,6] → [1,2]
+
+Revalidate current model.
+
+Test:
+
+feature extraction
+scaler
+LSTM inference
+Random Forest inference
+RiskEngine fusion
+
+No hardcoded outputs.
+
+Diagnostics READY only after actual model initialization.
+
+==================================================
+9. RISK ENGINE
+==================================================
+
+Verify the real pipeline:
+
+GPS
+→ Geofence
+→ Feature extraction
+→ LSTM
+→ Random Forest
+→ RiskEngine
+
+Outputs:
+
+SAFE
+CAUTION
+WARNING
+CRITICAL
+
+Do not let AI change this.
+
+==================================================
+10. ALERT SYSTEM
+==================================================
+
+Verify:
+
+RiskEngine
+→ AlertService
+→ notification
+→ sound
+→ vibration
+→ TTS
+→ SQLite
+
+Check real state changes.
+
+Implement deduplication/cooldown.
+
+No artificial alerts in production.
+
+==================================================
+11. OFFLINE MAP
+==================================================
+
+The current screen shows offline regions as READY.
+
+Do NOT trust that just because SQLite says READY.
+
+Actually verify the local map data.
+
+READY must require real local-map completeness/integrity.
+
+Do NOT use public tile.openstreetmap.org for offline prefetch.
+
+Use a legitimate offline source such as permitted:
+
+PMTiles
+MBTiles
+self-hosted data
+or provider explicitly allowing offline use
+
+Offline states:
+
+NOT_DOWNLOADED
+DOWNLOADING
+VERIFYING
+READY
+FAILED
+CORRUPT
+
+==================================================
+12. TRUE OFFLINE MAP TEST
+==================================================
+
+After a valid offline region exists:
+
+Wi-Fi OFF
+Mobile Data OFF
+force-stop BSAS
+restart BSAS
+
+Verify:
+
+offline map renders
+GPS works
+marker appears
+pan works
+zoom works
+recenter works
+boundary appears
+geofence works
+RiskEngine works
+
+If this has not happened:
+
+OFFLINE MAP != PASS
+
+==================================================
+13. SQLITE
+==================================================
+
+Verify actual persistence.
+
+Check:
+
+location data where configured
+alerts
+events
+offline region metadata
+sync queue
+settings
+history
+
+Restart app and confirm data remains.
+
+No fake history.
+
+==================================================
+14. SYNC
+==================================================
+
+Verify actual:
+
+SQLite
+→ SyncQueue
+→ FastAPI
+→ PostgreSQL/PostGIS
+→ server acknowledgement
+→ Synced
+
+When offline:
+
+Pending
+
+When online again:
+
+retry automatically.
+
+Never mark Synced without actual server acknowledgement.
+
+==================================================
+15. FASTAPI
+==================================================
+
+Verify every important backend endpoint.
+
+Check:
+
+auth
+alerts
+events
+zones
+sync
+dashboard
+health
+
+No hardcoded success responses.
+
+No endpoint that always returns SAFE.
+
+==================================================
+16. AUTH + SECURITY
+==================================================
+
+Verify:
+
+password hashing
+JWT
+token expiry
+protected routes
+roles
+authorization
+CORS
+secrets
+input validation
+
+Public registration must NOT allow the user to assign privileged roles.
+
+Add/verify tests.
+
+==================================================
+17. POSTGRESQL + POSTGIS
+==================================================
+
+Do not use SQLite tests as proof.
+
+Actually connect to PostgreSQL/PostGIS if environment is available.
+
+Run migrations.
+
+Verify:
+
+PostgreSQL connection
+PostGIS extension
+CRUD
+geographic queries
+
+If external DB is unavailable:
+
+mark BLOCKED
+
+and continue other work.
+
+==================================================
+18. AI CHAT
+==================================================
+
+Verify AI Chat genuinely works.
+
+Architecture:
+
+Flutter
+→ LocalChatService
+→ OllamaAiProvider
+→ Ollama
+→ qwen3:0.6b
+→ real streamed tokens
+
+Run:
+
+ollama --version
+ollama list
+
+Test Ollama API.
+
+For USB-connected Samsung:
+
+adb reverse tcp:11434 tcp:11434
+
+if needed.
+
+Then physically send a real AI message from the app.
+
+No canned response.
+
+No fake answer.
+
+No empty successful response.
+
+==================================================
+19. AI REAL-TIME CONTEXT
+==================================================
+
+Pass read-only real BSAS context:
+
+GPS state
+current coordinates where appropriate
+RiskEngine state
+Geofence state
+boundary distance
+recent alerts
+
+If unavailable:
+
+UNKNOWN
+
+Do not invent data.
+
+AI must not modify:
+
+GPS
+Geofence
+RiskEngine
+boundaries
+alerts
+
+==================================================
+20. HOME SCREEN
+==================================================
+
+Check the Home screen uses REAL current state.
+
+Show actual:
+
+Safety state
+GPS state
+boundary information
+latest alert
+
+No demo cards.
+
+No fake metrics.
+
+==================================================
+21. SAFETY SCREEN
+==================================================
+
+Verify it uses the same real state as Home and Map.
+
+No duplicate/fake safety calculation.
+
+==================================================
+22. HISTORY
+==================================================
+
+History must come from SQLite.
+
+No artificial records.
+
+==================================================
+23. SETTINGS
+==================================================
+
+Every setting must actually work and persist.
+
+Check:
+
+theme
+notifications
+sound
+vibration
+TTS
+map preferences
+AI settings
+privacy/data settings
+
+==================================================
+24. DIAGNOSTICS
+==================================================
+
+Diagnostics must show actual live state for:
+
+GPS Permission
+GPS Receiver
+GPS Fix
+Accuracy
+Map
+Map provider
+Map type
+Offline map
+Boundary dataset
+Geofence
+LSTM
+Random Forest
+RiskEngine
+SQLite
+Sync
+FastAPI
+PostgreSQL
+PostGIS
+Ollama
+Qwen3
+
+No hardcoded READY.
+
+==================================================
+25. UI / UX CHECK
+==================================================
+
+Check all screens for:
+
+overflow
+broken ListTiles
+bad spacing
+buttons outside screen
+text clipping
+bad contrast
+dead buttons
+navigation errors
+duplicate controls
+loading states
+error states
+empty states
+
+Make the app modern, clean and professional.
+
+Do NOT use:
+
+military HUD
+cyberpunk design
+excessive cards
+random gradients
+fake animations
+
+==================================================
+26. FLUTTER TESTS
+==================================================
+
+Run:
+
+flutter clean
+flutter pub get
+dart analyze
+flutter test
+
+Target:
+
+0 analyzer errors
+0 failing tests
+
+Do not modify tests just to make them pass unless tests are genuinely outdated.
+
+==================================================
+27. BACKEND TESTS
+==================================================
+
+Run all backend tests.
+
+Also test authentication and protected routes.
+
+==================================================
+28. FRONTEND TESTS
+==================================================
+
+Run:
+
+npm install / npm ci
+lint
+typecheck
+production build
+
+Fix failures.
+
+==================================================
+29. BUILD FRESH APK
+==================================================
+
+Build CURRENT source:
+
+flutter build apk --release
+
+Do not reuse any previous APK.
+
+==================================================
+30. INSTALL THE NEW BUILD
+==================================================
+
+Run:
+
+adb devices
+
+Confirm Samsung SM-A127F.
+
+Install:
+
+adb install -r build/app/outputs/flutter-apk/app-release.apk
+
+Then launch:
+
+com.bordersafety.border_safety_alert/.MainActivity
+
+==================================================
+31. PHYSICAL PHONE TEST
+==================================================
+
+Actually test the installed CURRENT build.
+
+Check:
+
+Splash
+Onboarding
+Permissions
+Home
+Map
+Safety
+Route
+Alerts
+Alert Details
+History
+AI Chat
+Settings
+Diagnostics
+
+==================================================
+32. PHYSICAL MAP TEST
+==================================================
+
+Verify visibly:
+
+map renders
+no 403 tiles
+Normal map works
+Satellite works
+Hybrid works
+road names appear
+place names appear
+GPS marker appears
+GPS updates
+pan works
+zoom works
+recenter works
+follow works
+layers work
+
+Do not mark MAP PASS before this.
+
+==================================================
+33. PHYSICAL GPS TEST
+==================================================
+
+Verify:
+
+GPS locks
+real latitude/longitude
+accuracy
+speed
+heading
+timestamps
+
+Use Logcat/ADB evidence.
+
+==================================================
+34. PHYSICAL AI TEST
+==================================================
+
+Open AI Chat.
+
+Send a real prompt.
+
+Verify:
+
+Qwen3 receives it
+real response streams back
+UI displays response
+
+Then stop Ollama.
+
+Verify AI correctly shows unavailable.
+
+Restart Ollama.
+
+Verify reconnection.
+
+==================================================
+35. PHYSICAL PERSISTENCE TEST
+==================================================
+
+Create/use real app data.
+
+Restart app.
+
+Verify:
+
+history
+settings
+offline metadata
+alerts
+
+persist correctly.
+
+==================================================
+36. PHYSICAL SYNC TEST
+==================================================
+
+If backend is available:
+
+create real pending data
+sync
+verify server acknowledgement
+verify local record becomes Synced
+
+Disconnect network:
+
+verify Pending.
+
+Reconnect:
+
+verify retry.
+
+==================================================
+37. OFFLINE TEST
+==================================================
+
+Turn off:
+
+Wi-Fi
+Mobile Data
+
+Then restart app.
+
+Verify core local features:
+
+GPS
+location
+offline map if prepared
+boundaries
+geofence
+ML
+RiskEngine
+alerts
+SQLite
+
+AI using laptop Ollama may correctly become unavailable unless connected through
+the configured local-development link.
+
+Do not call laptop Ollama "on-device AI".
+
+==================================================
+38. RELEASE SIGNING
+==================================================
+
+Check if release still uses debug signing.
+
+If yes:
+
+configure proper production release-signing architecture.
+
+Do NOT commit:
+
+keystore
+passwords
+private signing secrets
+
+If credentials are not supplied:
+
+mark signing BLOCKED.
+
+==================================================
+39. BUILD AAB
+==================================================
+
+After tests:
+
+flutter build appbundle --release
+
+Generate fresh APK + AAB.
+
+Calculate fresh SHA-256.
+
+==================================================
+40. FINAL REPORT
+==================================================
+
+Update FINAL_VERIFICATION_REPORT.md.
+
+For every subsystem use ONLY:
+
+PASS
+PARTIAL
+FAIL
+BLOCKED
+NOT_CONFIGURED
+
+PASS requires actual execution.
+
+Examples:
+
+GPS class exists != PASS
+Map screen exists != PASS
+Offline row says READY != PASS
+GGUF/Ollama installed != AI PASS
+APK builds != physical app PASS
+
+==================================================
+41. IMPORTANT — CURRENT SCREENSHOTS
+==================================================
+
+My screenshots show the current map is broken with OSM 403 errors.
+
+Therefore DO NOT reuse the previous claim:
+
+MAP PASS
+
+until the newly installed CURRENT build visibly renders working map data.
+
+==================================================
+42. TOKEN LIMIT RULE
+==================================================
+
+USE MINIMUM CHAT TOKENS.
+
+Do not repeat architecture every time.
+
+Do not send long progress paragraphs.
+
+Do not ask me whether to continue.
+
+Only use:
+
+PHASE:
+DONE:
+TEST:
+STATUS:
+NEXT:
+
+Then immediately continue implementation.
+
+==================================================
+FINAL GOAL
+==================================================
+
+I need EVERYTHING possible working NOW:
+
+REAL GPS
+REAL LOCATION
+REAL-TIME UPDATES
+REAL MAP
+NORMAL MAP
+SATELLITE MAP
+HYBRID MAP
+REAL PLACE NAMES
+REAL BOUNDARIES
+REAL GEOFENCE
+REAL ML
+REAL RISK
+REAL ALERTS
+REAL SQLITE
+REAL HISTORY
+REAL SYNC
+REAL BACKEND
+REAL POSTGRESQL/POSTGIS
+REAL AI CHAT
+REAL QWEN3 RESPONSE
+REAL UI/UX
+REAL PHYSICAL PHONE TEST
+REAL APK
+REAL AAB
+
+CHECK EVERYTHING.
+
+FIX EVERYTHING POSSIBLE.
+
+BUILD IT.
+
+INSTALL IT.
+
+OPEN IT.
+
+TEST IT ON THE PHONE.
+
+IF SOMETHING FAILS, FIX IT AND TEST AGAIN.
+
+START NOW.
+
+TOKEN RULE:
+Keep every progress response under 8 short lines unless a blocker requires more detail.

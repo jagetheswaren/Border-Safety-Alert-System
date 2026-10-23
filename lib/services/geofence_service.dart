@@ -44,7 +44,9 @@ class GeoFenceService {
   Future<GeoFenceResult> evaluate(LocationModel? location) async {
     if (location == null ||
         !location.latitude.isFinite ||
-        !location.longitude.isFinite || location.isStale || (location.accuracy ?? double.infinity) > 50) {
+        !location.longitude.isFinite ||
+        location.isStale ||
+        (location.accuracy ?? double.infinity) > 200) {
       return GeoFenceResult.gpsUnavailable();
     }
     try {

@@ -9,7 +9,10 @@ void main() {
 
     setUp(() {
       modelManager = ModelManager();
-      chatService = LocalChatService(modelManager: modelManager);
+      chatService = LocalChatService(
+        modelManager: modelManager,
+        backendMode: ChatBackendMode.onDeviceGguf,
+      );
     });
 
     test('chat streaming generates non-empty token stream', () async {

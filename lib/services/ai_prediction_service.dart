@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
-import 'package:tflite_flutter/tflite_flutter.dart';
+import 'lstm_runner/lstm_runner.dart';
 import '../models/location_model.dart';
 import '../models/ai_prediction_result.dart';
 
@@ -11,7 +11,7 @@ class AiPredictionService extends ChangeNotifier {
   static const int _sequenceLength = 5;
   final List<LocationModel> _locationBuffer = [];
   
-  Interpreter? _lstmInterpreter;
+  late final LstmRunner _lstmRunner = LstmRunner();
   Map<String, dynamic>? _rfModel;
   Map<String, dynamic>? _scalerParams;
   bool _isInitialized = false;
@@ -30,18 +30,8 @@ class AiPredictionService extends ChangeNotifier {
 
   Future<void> initialize() async {
     try {
-      try {
-        _lstmInterpreter = await Interpreter.fromAsset('assets/models/phase7-lstm-v1.tflite');
-        final input = _lstmInterpreter!.getInputTensor(0);
-        final output = _lstmInterpreter!.getOutputTensor(0);
-        if (input.shape.join(',') != '1,5,6' || output.shape.join(',') != '1,2') {
-          throw StateError('Unexpected LSTM tensor schema');
-        }
-        _lstmReady = true;
-      } catch (tfliteErr) {
-        debugPrint('TFLite interpreter not available on this platform (trajectory prediction unavailable): $tfliteErr');
-        _lstmReady = false;
-      }
+      await _lstmRunner.initialize();
+      _lstmReady = _lstmRunner.isReady;
 
       final rfJson = await rootBundle.loadString('assets/models/phase7-rf-v1.json');
       _rfModel = jsonDecode(rfJson);
@@ -145,22 +135,14 @@ class AiPredictionService extends ChangeNotifier {
     double dLat = 0.0;
     double dLon = 0.0;
 
-    if (_lstmReady && _lstmInterpreter != null) {
-      // Run LSTM
-      // Input shape [1, 5, 6]
-      var input = [sequence];
-      var output = List.filled(1 * 2, 0.0).reshape([1, 2]);
-      
-      final sw = Stopwatch()..start();
-      try {
-        _lstmInterpreter!.run(input, output);
-        sw.stop();
-        _lastInference = sw.elapsed;
-        dLat = output[0][0] as double;
-        dLon = output[0][1] as double;
-      } catch (e) {
-        sw.stop();
-        _lastError = '$e';
+    if (_lstmReady) {
+      final delta = _lstmRunner.predict(sequence);
+      if (delta != null) {
+        dLat = delta.$1;
+        dLon = delta.$2;
+        _lastInference = _lstmRunner.lastInference;
+      } else {
+        _lastError = _lstmRunner.lastError;
         _lstmReady = false;
       }
     }
@@ -217,7 +199,7 @@ class AiPredictionService extends ChangeNotifier {
   }
 
   @override
-  void dispose() { _lstmInterpreter?.close(); super.dispose(); }
+  void dispose() { _lstmRunner.dispose(); super.dispose(); }
 
   int _evaluateTree(Map<String, dynamic> node, List<double> features) {
     if (node['type'] == 'leaf') {

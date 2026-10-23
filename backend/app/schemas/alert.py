@@ -17,6 +17,13 @@ class AlertBase(BaseModel):
 class AlertCreate(AlertBase):
     pass
 
+class AlertUpdate(BaseModel):
+    title: Optional[str] = None
+    message: Optional[str] = None
+    severity: Optional[str] = None
+    acknowledged: Optional[bool] = None
+    resolved: Optional[bool] = None
+
 class AlertInDB(AlertBase):
     id: str
     created_at: datetime

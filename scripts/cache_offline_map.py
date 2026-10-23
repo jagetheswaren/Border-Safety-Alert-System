@@ -37,7 +37,7 @@ DEFAULT_REGIONS = {
 }
 
 USER_AGENT = "BSAS-offline-map/1.0 (border-safety-alert; educational field app; contact: safety@bsas.local)"
-TILE_URL_TEMPLATE = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+TILE_URL_TEMPLATE = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}"
 PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
 
 

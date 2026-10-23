@@ -8,14 +8,14 @@ import '../core/widgets/bsas_logo.dart';
 import '../core/widgets/status_badge.dart';
 import '../models/gps_snapshot.dart';
 import '../models/geofence_result.dart';
+import '../services/ai_provider.dart';
 import '../services/chat_memory_service.dart';
 import '../services/local_chat_service.dart';
 import '../services/model_manager.dart';
 
-/// Redesigned dedicated BSAS Field AI Assistant.
+/// Clean, modern BSAS AI Assistant.
 ///
-/// Designed with an original civilian safety identity (NOT a ChatGPT clone).
-/// Strictly communicates genuine model state, offers real streaming with stop action,
+/// Communicates genuine model state, offers real streaming with stop action,
 /// and operates within the read-only safety snapshot isolation boundary.
 class AiChatScreen extends StatefulWidget {
   const AiChatScreen({
@@ -43,6 +43,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
   String _currentConversationId = '';
   final List<ChatMessageModel> _activeMessages = [];
   String _streamingContent = '';
+  String? _lastError;
+  String? _lastUserPrompt;
   StreamSubscription<String>? _streamSub;
 
   @override
@@ -50,9 +52,12 @@ class _AiChatScreenState extends State<AiChatScreen> {
     super.initState();
     _initConversation();
     widget.modelManager.checkModelStatus();
-    widget.chatService.checkOllamaHealth().then((_) {
-      if (mounted) setState(() {});
-    });
+    _refreshAiHealth();
+  }
+
+  Future<void> _refreshAiHealth() async {
+    await widget.chatService.checkOllamaHealth();
+    if (mounted) setState(() {});
   }
 
   Future<void> _initConversation() async {
@@ -63,18 +68,18 @@ class _AiChatScreenState extends State<AiChatScreen> {
       setState(() => _activeMessages.addAll(saved));
     } else {
       _currentConversationId = await widget.memoryService.createConversation(
-        title: 'Field Safety Session',
+        title: 'Safety Session',
       );
       final isOllama = widget.chatService.isOllamaConnected;
       final isGguf = widget.modelManager.isModelLoaded;
 
       String welcomeText;
-      if (isGguf) {
-        welcomeText = 'BSAS Field AI Assistant active (On-Device Qwen3-0.6B). I can explain your sensor telemetry, boundary conditions, and evacuation protocols.';
-      } else if (isOllama) {
-        welcomeText = 'BSAS Field AI Assistant connected to local GPU Ollama (Qwen2.5-0.5B). Ready for civilian safety inquiries.';
+      if (isOllama) {
+        welcomeText = 'BSAS AI connected locally via Ollama (${widget.chatService.aiProvider.modelName}). Real-time telemetry context is attached. How can I assist with your safety in this sector?';
+      } else if (isGguf) {
+        welcomeText = 'BSAS AI active via on-device Qwen3-0.6B GGUF. Local safety and boundary assistance ready.';
       } else {
-        welcomeText = 'BSAS Field AI Assistant initialized. The on-device Qwen3 model is pending installation; sensor status and deterministic telemetry explanations remain available.';
+        welcomeText = 'BSAS AI Assistant initialized. Local AI server is offline on development host; real-time sensor status and deterministic safety boundaries remain fully active.';
       }
 
       final welcome = ChatMessageModel(
@@ -110,6 +115,9 @@ class _AiChatScreenState extends State<AiChatScreen> {
     if (query.isEmpty) return;
 
     _controller.clear();
+    _lastUserPrompt = query;
+    _lastError = null;
+
     final userMsg = ChatMessageModel(
       id: 'msg_${DateTime.now().millisecondsSinceEpoch}',
       conversationId: _currentConversationId,
@@ -153,22 +161,37 @@ class _AiChatScreenState extends State<AiChatScreen> {
             setState(() {
               _activeMessages.add(aiMsg);
               _streamingContent = '';
+              _lastError = null;
             });
             _scrollToBottom();
           }
         },
         onError: (err) {
           if (mounted) {
+            setState(() {
+              _lastError = err.toString();
+              _streamingContent = '';
+            });
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Generation error: $err')),
+              SnackBar(
+                content: Text('Generation error: $err'),
+                backgroundColor: BsasColors.criticalRed,
+              ),
             );
           }
         },
       );
     } catch (e) {
       if (mounted) {
+        setState(() {
+          _lastError = e.toString();
+          _streamingContent = '';
+        });
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Inference error: $e')),
+          SnackBar(
+            content: Text('Inference error: $e'),
+            backgroundColor: BsasColors.criticalRed,
+          ),
         );
       }
     }
@@ -193,6 +216,12 @@ class _AiChatScreenState extends State<AiChatScreen> {
     }
   }
 
+  void _retryLast() {
+    if (_lastUserPrompt != null) {
+      _sendMessage(_lastUserPrompt!);
+    }
+  }
+
   void _clearChat() async {
     await widget.memoryService.clearMessages(_currentConversationId);
     setState(() => _activeMessages.clear());
@@ -211,36 +240,41 @@ class _AiChatScreenState extends State<AiChatScreen> {
     });
   }
 
-  String get _statusLabel {
-    final mm = widget.modelManager;
+  String get _providerSubtitle {
     final isOllama = widget.chatService.isOllamaConnected;
-    if (widget.chatService.isGenerating) return 'GENERATING';
-    if (isOllama) return 'OLLAMA READY';
-    if (mm.isModelLoaded) return 'LOCAL AI READY';
-    switch (mm.state) {
-      case ModelState.checking:
-        return 'CHECKING';
-      case ModelState.loading:
-        return 'LOADING';
-      case ModelState.verifying:
-        return 'VERIFYING';
-      case ModelState.error:
-        return 'AI ERROR';
-      case ModelState.corrupted:
-        return 'CORRUPTED';
-      case ModelState.notInstalled:
-      default:
-        return 'MODEL NOT FOUND';
+    final modelName = widget.chatService.aiProvider.modelName;
+    if (isOllama) {
+      return '$modelName Local via Ollama';
+    } else if (widget.modelManager.isModelLoaded) {
+      return 'Qwen3 0.6B On-Device GGUF';
+    } else {
+      return 'Local AI Unavailable (Host Offline)';
     }
   }
 
-  StatusState get _statusState {
-    final mm = widget.modelManager;
+  String get _statusLabel {
+    final isGenerating = widget.chatService.isGenerating;
     final isOllama = widget.chatService.isOllamaConnected;
+    final mm = widget.modelManager;
+
+    if (isGenerating) return 'GENERATING';
+    if (isOllama) return 'READY';
+    if (mm.isModelLoaded) return 'READY';
+    if (widget.chatService.aiProvider.status == AiProviderStatus.checking) {
+      return 'CHECKING';
+    }
+    return 'OFFLINE';
+  }
+
+  StatusState get _statusState {
     if (widget.chatService.isGenerating) return StatusState.loading;
-    if (isOllama || mm.isModelLoaded) return StatusState.ready;
-    if (mm.state == ModelState.error || mm.state == ModelState.corrupted) return StatusState.critical;
-    return StatusState.warning;
+    if (widget.chatService.isOllamaConnected || widget.modelManager.isModelLoaded) {
+      return StatusState.ready;
+    }
+    if (widget.chatService.aiProvider.status == AiProviderStatus.checking) {
+      return StatusState.loading;
+    }
+    return StatusState.idle;
   }
 
   @override
@@ -251,47 +285,46 @@ class _AiChatScreenState extends State<AiChatScreen> {
 
     return Scaffold(
       key: const Key('screen-ai-chat'),
-      backgroundColor: isDark ? BsasColors.darkBackground : BsasColors.lightBackground,
+      backgroundColor: BsasColors.background(isDark),
       body: SafeArea(
         child: Column(
           children: [
-            // Unified Tactical Header
+            // Modern Navigation Header
             Container(
               padding: const EdgeInsets.symmetric(
-                horizontal: BsasSpacing.screenMargin,
+                horizontal: BsasSpacing.lg,
                 vertical: BsasSpacing.sm,
               ),
               decoration: BoxDecoration(
-                color: isDark ? BsasColors.darkSurface : BsasColors.lightSurface,
+                color: BsasColors.surface(isDark),
                 border: Border(
-                  bottom: BorderSide(
-                    color: isDark ? BsasColors.darkBorder : BsasColors.lightBorder,
-                  ),
+                  bottom: BorderSide(color: BsasColors.border(isDark)),
                 ),
               ),
               child: Column(
                 children: [
                   Row(
                     children: [
-                      const BsasLogo(size: 24, animated: false),
+                      const BsasLogo(size: 26, animated: false),
                       const SizedBox(width: BsasSpacing.sm),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'LOCAL AI TERMINAL',
-                              style: BsasTypography.caption.copyWith(
-                                color: isDark ? Colors.white : Colors.black87,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 1.2,
+                              'BSAS AI',
+                              style: BsasTypography.heading.copyWith(
+                                color: BsasColors.text(isDark),
+                                fontSize: 16,
+                                letterSpacing: 0.5,
                               ),
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              'Air-Gapped Field Assistant',
+                              _providerSubtitle,
                               style: BsasTypography.caption.copyWith(
                                 color: BsasColors.radarCyan,
+                                fontSize: 11,
                               ),
                             ),
                           ],
@@ -302,18 +335,26 @@ class _AiChatScreenState extends State<AiChatScreen> {
                         state: _statusState,
                         isPulsing: isGenerating,
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: BsasSpacing.xs),
                       IconButton(
-                        icon: const Icon(Icons.delete_outline, size: 22),
-                        tooltip: 'Clear Session',
+                        icon: const Icon(Icons.refresh_rounded, size: 20),
+                        tooltip: 'Check Connection',
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        onPressed: isGenerating ? null : _refreshAiHealth,
+                      ),
+                      const SizedBox(width: BsasSpacing.sm),
+                      IconButton(
+                        icon: const Icon(Icons.delete_outline_rounded, size: 20),
+                        tooltip: 'Clear Chat',
                         padding: EdgeInsets.zero,
                         constraints: const BoxConstraints(),
                         onPressed: isGenerating ? null : _clearChat,
                       ),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: BsasSpacing.sm),
                       IconButton(
-                        icon: const Icon(Icons.data_object, size: 22),
-                        tooltip: 'Model Diagnostics',
+                        icon: const Icon(Icons.info_outline_rounded, size: 20),
+                        tooltip: 'Diagnostics',
                         padding: EdgeInsets.zero,
                         constraints: const BoxConstraints(),
                         onPressed: _showModelDiagnosticsDialog,
@@ -321,62 +362,75 @@ class _AiChatScreenState extends State<AiChatScreen> {
                     ],
                   ),
                   const SizedBox(height: BsasSpacing.sm),
-                  _buildSensorTicker(context),
+                  _buildSafetyContextPill(isDark),
                 ],
               ),
             ),
 
-          // Conversation Messages
-          Expanded(
-            child: ListView.builder(
-              controller: _scrollController,
-              padding: const EdgeInsets.symmetric(
-                horizontal: BsasSpacing.screenMargin,
-                vertical: BsasSpacing.md,
+            // Messages List
+            Expanded(
+              child: ListView.builder(
+                controller: _scrollController,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: BsasSpacing.lg,
+                  vertical: BsasSpacing.md,
+                ),
+                itemCount: _activeMessages.length +
+                    (isGenerating ? 1 : 0) +
+                    (_lastError != null ? 1 : 0),
+                itemBuilder: (context, idx) {
+                  if (idx < _activeMessages.length) {
+                    return _buildMessageBubble(_activeMessages[idx], isDark);
+                  }
+                  if (isGenerating && idx == _activeMessages.length) {
+                    return _buildStreamingBubble(isDark);
+                  }
+                  return _buildErrorCard(isDark);
+                },
               ),
-              itemCount: _activeMessages.length + (isGenerating ? 1 : 0),
-              itemBuilder: (context, idx) {
-                if (idx < _activeMessages.length) {
-                  return _buildMessageBubble(_activeMessages[idx], isDark);
-                }
-                return _buildStreamingBubble(isDark);
-              },
             ),
-          ),
 
-          // Suggested Prompts (when inactive)
-          if (!isGenerating && _activeMessages.length <= 2)
-            _buildPromptSuggestions(),
+            // Prompt suggestions
+            if (!isGenerating && _activeMessages.length <= 2)
+              _buildPromptSuggestions(isDark),
 
-          // Input / Stop Controls
-          _buildInputBar(context, isGenerating, isDark),
-        ],
+            // Input bar
+            _buildInputBar(context, isGenerating, isDark),
+          ],
+        ),
       ),
-    ));
+    );
   }
 
-  Widget _buildSensorTicker(BuildContext context) {
+  Widget _buildSafetyContextPill(bool isDark) {
     final snapshot = _buildSnapshot();
+    final riskColor = snapshot.riskState == 'CRITICAL'
+        ? BsasColors.criticalRed
+        : (snapshot.riskState == 'WARNING'
+            ? BsasColors.warningOrange
+            : (snapshot.riskState == 'CAUTION'
+                ? BsasColors.cautionYellow
+                : BsasColors.safeGreen));
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: BsasSpacing.sm, vertical: BsasSpacing.xs),
+      padding: const EdgeInsets.symmetric(horizontal: BsasSpacing.sm, vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.2),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: BsasColors.darkBorder),
+        color: (isDark ? Colors.black : Colors.grey.shade100).withValues(alpha: 0.6),
+        borderRadius: BorderRadius.circular(BsasSpacing.cardRadius),
+        border: Border.all(color: BsasColors.border(isDark)),
       ),
       child: Row(
         children: [
-          const Icon(Icons.cable, size: 14, color: BsasColors.warningOrange),
+          Icon(Icons.shield_outlined, size: 14, color: riskColor),
           const SizedBox(width: BsasSpacing.xs),
           Expanded(
             child: Text(
-              'ATTACHED CONTEXT: ${snapshot.riskState} | GPS: ${snapshot.gpsAvailable ? "LOCKED" : "NONE"} | ZONE: ${snapshot.zoneState}',
-              style: BsasTypography.monoDiagnostics.copyWith(
+              'TELEMETRY: ${snapshot.riskState} | GPS: ${snapshot.gpsAvailable ? "Locked" : "Acquiring"} | Zone: ${snapshot.zoneState}',
+              style: BsasTypography.caption.copyWith(
                 fontSize: 10,
-                color: BsasColors.warningOrange,
-                fontWeight: FontWeight.bold,
+                color: isDark ? Colors.white70 : Colors.black87,
+                fontWeight: FontWeight.w600,
               ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -397,24 +451,26 @@ class _AiChatScreenState extends State<AiChatScreen> {
       child: Container(
         margin: const EdgeInsets.only(bottom: BsasSpacing.md),
         constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width * 0.9,
+          maxWidth: MediaQuery.of(context).size.width * 0.86,
         ),
         padding: const EdgeInsets.all(BsasSpacing.md),
         decoration: BoxDecoration(
           color: isUser
-              ? BsasColors.darkSurface
-              : (isDark ? BsasColors.darkCard : BsasColors.lightCard),
-          borderRadius: BorderRadius.circular(4),
+              ? (isDark ? const Color(0xFF1E3A5F) : const Color(0xFFE3F2FD))
+              : BsasColors.surface(isDark),
+          borderRadius: BorderRadius.circular(12).copyWith(
+            bottomRight: isUser ? const Radius.circular(2) : const Radius.circular(12),
+            bottomLeft: isUser ? const Radius.circular(12) : const Radius.circular(2),
+          ),
           border: Border.all(
             color: isUser
-                ? BsasColors.safeGreen.withValues(alpha: 0.5)
-                : BsasColors.radarCyan.withValues(alpha: 0.3),
-            width: 1,
+                ? (isDark ? const Color(0xFF2A558C) : const Color(0xFFBBDEFB))
+                : BsasColors.border(isDark),
           ),
           boxShadow: [
             BoxShadow(
-              color: (isUser ? BsasColors.safeGreen : BsasColors.radarCyan).withValues(alpha: 0.05),
-              blurRadius: 8,
+              color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
+              blurRadius: 6,
               offset: const Offset(0, 2),
             ),
           ],
@@ -426,39 +482,38 @@ class _AiChatScreenState extends State<AiChatScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(
-                  isUser ? Icons.person_outline : Icons.memory,
-                  size: 14,
-                  color: isUser ? BsasColors.safeGreen : BsasColors.radarCyan,
+                  isUser ? Icons.person_outline : Icons.auto_awesome,
+                  size: 13,
+                  color: isUser ? (isDark ? Colors.white70 : BsasColors.primaryBlue) : BsasColors.radarCyan,
                 ),
                 const SizedBox(width: BsasSpacing.xs),
                 Text(
-                  isUser ? 'FIELD OPERATOR' : 'SYS.AI',
-                  style: BsasTypography.monoDiagnostics.copyWith(
-                    color: isUser ? BsasColors.safeGreen : BsasColors.radarCyan,
+                  isUser ? 'YOU' : 'BSAS AI',
+                  style: BsasTypography.caption.copyWith(
                     fontWeight: FontWeight.bold,
                     fontSize: 10,
+                    letterSpacing: 0.5,
+                    color: isUser ? (isDark ? Colors.white70 : BsasColors.primaryBlue) : BsasColors.radarCyan,
                   ),
                 ),
                 const Spacer(),
                 Text(
                   timeStr,
-                  style: BsasTypography.monoDiagnostics.copyWith(
+                  style: BsasTypography.caption.copyWith(
                     fontSize: 10,
-                    color: isDark ? BsasColors.textLightMuted : BsasColors.textDarkMuted,
+                    color: BsasColors.textSec(isDark),
                   ),
                 ),
               ],
             ),
             const SizedBox(height: BsasSpacing.sm),
-            Text(
+            SelectableText(
               msg.content,
-              style: isUser 
-                  ? BsasTypography.body.copyWith(color: Colors.white, height: 1.4)
-                  : BsasTypography.monoDiagnostics.copyWith(
-                      color: isDark ? Colors.white : Colors.black87,
-                      height: 1.5,
-                      fontSize: 13,
-                    ),
+              style: BsasTypography.body.copyWith(
+                color: BsasColors.text(isDark),
+                fontSize: 13.5,
+                height: 1.45,
+              ),
             ),
           ],
         ),
@@ -472,21 +527,23 @@ class _AiChatScreenState extends State<AiChatScreen> {
       child: Container(
         margin: const EdgeInsets.only(bottom: BsasSpacing.md),
         constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width * 0.9,
+          maxWidth: MediaQuery.of(context).size.width * 0.86,
         ),
         padding: const EdgeInsets.all(BsasSpacing.md),
         decoration: BoxDecoration(
-          color: isDark ? BsasColors.darkCard : BsasColors.lightCard,
-          borderRadius: BorderRadius.circular(4),
+          color: BsasColors.surface(isDark),
+          borderRadius: BorderRadius.circular(12).copyWith(
+            bottomLeft: const Radius.circular(2),
+          ),
           border: Border.all(
-            color: BsasColors.radarCyan.withValues(alpha: 0.8),
-            width: 1.5,
+            color: BsasColors.radarCyan.withValues(alpha: 0.5),
+            width: 1.2,
           ),
           boxShadow: [
             BoxShadow(
-              color: BsasColors.radarCyan.withValues(alpha: 0.2),
-              blurRadius: 12,
-              offset: const Offset(0, 0),
+              color: BsasColors.radarCyan.withValues(alpha: 0.1),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
             ),
           ],
         ),
@@ -499,26 +556,30 @@ class _AiChatScreenState extends State<AiChatScreen> {
                 const SizedBox(
                   width: 12,
                   height: 12,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: BsasColors.radarCyan),
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: BsasColors.radarCyan,
+                  ),
                 ),
                 const SizedBox(width: BsasSpacing.xs),
                 Text(
-                  'SYS.AI :: SYNTHESIZING RESPONSE...',
-                  style: BsasTypography.monoDiagnostics.copyWith(
+                  'BSAS AI STREAMING...',
+                  style: BsasTypography.caption.copyWith(
                     color: BsasColors.radarCyan,
                     fontWeight: FontWeight.bold,
                     fontSize: 10,
+                    letterSpacing: 0.5,
                   ),
                 ),
               ],
             ),
             const SizedBox(height: BsasSpacing.sm),
             Text(
-              _streamingContent.isEmpty ? 'Reading context snapshot...' : '$_streamingContent█',
-              style: BsasTypography.monoDiagnostics.copyWith(
-                color: isDark ? Colors.white : Colors.black87,
-                height: 1.5,
-                fontSize: 13,
+              _streamingContent.isEmpty ? 'Reading sensor telemetry...' : '$_streamingContent▌',
+              style: BsasTypography.body.copyWith(
+                color: BsasColors.text(isDark),
+                fontSize: 13.5,
+                height: 1.45,
               ),
             ),
           ],
@@ -527,30 +588,83 @@ class _AiChatScreenState extends State<AiChatScreen> {
     );
   }
 
-  Widget _buildPromptSuggestions() {
+  Widget _buildErrorCard(bool isDark) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: BsasSpacing.md),
+      padding: const EdgeInsets.all(BsasSpacing.md),
+      decoration: BoxDecoration(
+        color: BsasColors.criticalRed.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: BsasColors.criticalRed.withValues(alpha: 0.4)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.error_outline_rounded, color: BsasColors.criticalRed, size: 16),
+              const SizedBox(width: BsasSpacing.xs),
+              Text(
+                'Local AI Service Alert',
+                style: BsasTypography.title.copyWith(
+                  color: BsasColors.criticalRed,
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: BsasSpacing.xs),
+          Text(
+            _lastError ?? 'Connection error',
+            style: BsasTypography.caption.copyWith(color: BsasColors.text(isDark)),
+          ),
+          const SizedBox(height: BsasSpacing.sm),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              TextButton.icon(
+                onPressed: _retryLast,
+                icon: const Icon(Icons.refresh_rounded, size: 15),
+                label: const Text('Retry Prompt'),
+                style: TextButton.styleFrom(
+                  foregroundColor: BsasColors.criticalRed,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPromptSuggestions(bool isDark) {
     final suggestions = [
-      'Where am I?',
-      'Explain my safety status',
-      'System health?',
-      'Evacuation steps',
+      'Where am I right now?',
+      'Explain my safety risk',
+      'Nearest safe boundary distance?',
+      'Evacuation protocol',
     ];
 
     return Container(
-      height: 32,
+      height: 36,
       margin: const EdgeInsets.only(bottom: BsasSpacing.sm),
       child: ListView.separated(
-        padding: const EdgeInsets.symmetric(horizontal: BsasSpacing.screenMargin),
+        padding: const EdgeInsets.symmetric(horizontal: BsasSpacing.lg),
         scrollDirection: Axis.horizontal,
         itemCount: suggestions.length,
         separatorBuilder: (context, index) => const SizedBox(width: BsasSpacing.sm),
         itemBuilder: (context, idx) {
           final prompt = suggestions[idx];
           return ActionChip(
-            backgroundColor: BsasColors.darkSurface.withValues(alpha: 0.5),
-            side: const BorderSide(color: BsasColors.darkBorder),
+            backgroundColor: BsasColors.surface(isDark),
+            side: BorderSide(color: BsasColors.border(isDark)),
             label: Text(
-              prompt, 
-              style: BsasTypography.monoDiagnostics.copyWith(fontSize: 10, color: Colors.white70),
+              prompt,
+              style: BsasTypography.caption.copyWith(
+                fontSize: 11,
+                color: BsasColors.text(isDark),
+              ),
             ),
             onPressed: () => _sendMessage(prompt),
           );
@@ -562,16 +676,13 @@ class _AiChatScreenState extends State<AiChatScreen> {
   Widget _buildInputBar(BuildContext context, bool isGenerating, bool isDark) {
     return Container(
       padding: const EdgeInsets.symmetric(
-        horizontal: BsasSpacing.screenMargin,
+        horizontal: BsasSpacing.lg,
         vertical: BsasSpacing.sm,
       ),
       decoration: BoxDecoration(
-        color: isDark ? BsasColors.darkSurface : BsasColors.lightSurface,
+        color: BsasColors.surface(isDark),
         border: Border(
-          top: BorderSide(
-            color: isDark ? BsasColors.darkBorder : BsasColors.lightBorder,
-            width: 1,
-          ),
+          top: BorderSide(color: BsasColors.border(isDark)),
         ),
       ),
       child: SafeArea(
@@ -580,30 +691,30 @@ class _AiChatScreenState extends State<AiChatScreen> {
             Expanded(
               child: Container(
                 decoration: BoxDecoration(
-                  color: isDark ? Colors.black26 : Colors.black12,
-                  borderRadius: BorderRadius.circular(4),
-                  border: Border.all(color: isDark ? BsasColors.darkBorder : BsasColors.lightBorder),
+                  color: isDark ? const Color(0xFF141922) : const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: BsasColors.border(isDark)),
                 ),
                 child: TextField(
                   controller: _controller,
                   enabled: !isGenerating,
                   textInputAction: TextInputAction.send,
                   onSubmitted: _sendMessage,
-                  style: BsasTypography.monoDiagnostics.copyWith(
-                    color: Colors.white,
-                    fontSize: 13,
+                  style: BsasTypography.body.copyWith(
+                    color: BsasColors.text(isDark),
+                    fontSize: 14,
                   ),
                   decoration: InputDecoration(
                     prefixIcon: Icon(
-                      Icons.terminal,
-                      size: 16,
-                      color: isGenerating ? BsasColors.textLightMuted : BsasColors.safeGreen,
+                      Icons.chat_bubble_outline_rounded,
+                      size: 18,
+                      color: BsasColors.textSec(isDark),
                     ),
                     hintText: isGenerating
-                        ? 'Processing request...'
-                        : 'Enter query parameter...',
-                    hintStyle: BsasTypography.monoDiagnostics.copyWith(
-                      color: BsasColors.textLightMuted,
+                        ? 'Synthesizing response...'
+                        : 'Ask BSAS AI...',
+                    hintStyle: BsasTypography.caption.copyWith(
+                      color: BsasColors.textSec(isDark),
                       fontSize: 13,
                     ),
                     border: InputBorder.none,
@@ -616,34 +727,31 @@ class _AiChatScreenState extends State<AiChatScreen> {
             const SizedBox(width: BsasSpacing.sm),
             if (isGenerating)
               SizedBox(
-                height: 44,
+                height: 42,
                 child: ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: BsasColors.criticalRed.withValues(alpha: 0.2),
+                    backgroundColor: BsasColors.criticalRed.withValues(alpha: 0.15),
                     foregroundColor: BsasColors.criticalRed,
                     side: const BorderSide(color: BsasColors.criticalRed),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-                    padding: const EdgeInsets.symmetric(horizontal: BsasSpacing.md),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
                   ),
-                  icon: const Icon(Icons.stop_circle_outlined, size: 16),
-                  label: Text('HALT', style: BsasTypography.monoDiagnostics.copyWith(fontWeight: FontWeight.bold)),
+                  icon: const Icon(Icons.stop_rounded, size: 16),
+                  label: const Text('Stop', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                   onPressed: _stopGeneration,
                 ),
               )
             else
               SizedBox(
-                height: 44,
-                width: 44,
+                height: 42,
+                width: 42,
                 child: IconButton.filled(
                   style: IconButton.styleFrom(
-                    backgroundColor: BsasColors.safeGreen.withValues(alpha: 0.2),
-                    foregroundColor: BsasColors.safeGreen,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(4),
-                      side: const BorderSide(color: BsasColors.safeGreen),
-                    ),
+                    backgroundColor: isDark ? BsasColors.radarCyan : BsasColors.primaryBlue,
+                    foregroundColor: isDark ? Colors.black : Colors.white,
+                    shape: const CircleBorder(),
                   ),
-                  icon: const Icon(Icons.send_rounded, size: 18),
+                  icon: const Icon(Icons.arrow_upward_rounded, size: 20),
                   onPressed: () => _sendMessage(_controller.text),
                 ),
               ),
@@ -654,31 +762,88 @@ class _AiChatScreenState extends State<AiChatScreen> {
   }
 
   void _showModelDiagnosticsDialog() {
-    final mm = widget.modelManager;
+    final isOllama = widget.chatService.isOllamaConnected;
+    final modelName = widget.chatService.aiProvider.modelName;
+
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Local AI Architecture', style: BsasTypography.heading),
+        title: const Text('BSAS AI Subsystem Architecture', style: BsasTypography.heading),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _diagRow('Model Target', ModelManager.modelFilename),
-            _diagRow('Target SHA-256', '${ModelManager.expectedSha256.substring(0, 16)}...'),
-            _diagRow('Runtime State', mm.state.name.toUpperCase()),
-            _diagRow('Ollama Bridge', widget.chatService.isOllamaConnected ? 'Connected (GPU)' : 'Offline'),
-            _diagRow('Safety Mode', 'Read-Only Context (Deterministic Isolated)'),
+            _diagRow('Provider', isOllama ? 'Ollama Local Host' : 'On-Device GGUF'),
+            _diagRow('Active Model', modelName),
+            _diagRow('Ollama Endpoint', widget.chatService.activeBaseUrl),
+            _diagRow('Connection Status', isOllama ? 'CONNECTED' : 'OFFLINE'),
+            _diagRow('Safety Boundary', 'Read-Only Telemetry Isolation'),
             const SizedBox(height: BsasSpacing.sm),
             Text(
-              'Offline GGUF model must be located at models/qwen/ to run inference with zero network connectivity.',
+              isOllama
+                  ? 'Active development path: streaming over Ollama REST API with Qwen model. Safety context is strictly read-only.'
+                  : 'Ollama is currently unreachable on this host. Run "ollama serve" and ensure your device is connected.',
               style: BsasTypography.caption,
             ),
           ],
         ),
         actions: [
           TextButton(
+            child: const Text('CONFIGURE HOST'),
+            onPressed: () {
+              Navigator.pop(ctx);
+              _showConfigureHostDialog();
+            },
+          ),
+          TextButton(
             child: const Text('CLOSE'),
             onPressed: () => Navigator.pop(ctx),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showConfigureHostDialog() {
+    final textController = TextEditingController(text: widget.chatService.activeBaseUrl);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Configure Ollama Host', style: BsasTypography.heading),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Enter the Ollama server URL (e.g., http://172.31.92.225:11434 for LAN or http://127.0.0.1:11434 for ADB reverse):',
+              style: BsasTypography.caption,
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: textController,
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                isDense: true,
+                labelText: 'Host URL',
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            child: const Text('CANCEL'),
+            onPressed: () => Navigator.pop(ctx),
+          ),
+          TextButton(
+            child: const Text('PROBE & SAVE'),
+            onPressed: () {
+              final newUrl = textController.text.trim();
+              if (newUrl.isNotEmpty) {
+                widget.chatService.updateOllamaBaseUrl(newUrl);
+              }
+              Navigator.pop(ctx);
+              unawaited(_refreshAiHealth());
+            },
           ),
         ],
       ),
@@ -691,12 +856,12 @@ class _AiChatScreenState extends State<AiChatScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: BsasTypography.bodyMuted),
+          Text(label, style: BsasTypography.caption),
           const SizedBox(width: 8),
           Flexible(
             child: Text(
               value,
-              style: BsasTypography.monoDiagnostics.copyWith(fontSize: 11),
+              style: BsasTypography.caption.copyWith(fontWeight: FontWeight.bold),
               textAlign: TextAlign.end,
             ),
           ),

@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
+import '../core/theme/app_motion.dart';
 import '../core/theme/bsas_colors.dart';
 import '../core/theme/bsas_spacing.dart';
 import '../core/theme/bsas_typography.dart';
@@ -28,7 +30,8 @@ class SplashScreen extends StatefulWidget {
   State<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderStateMixin {
+class _SplashScreenState extends State<SplashScreen>
+    with SingleTickerProviderStateMixin {
   late final AnimationController _animController;
   late final Animation<double> _scaleAnimation;
   late final Animation<double> _fadeAnimation;
@@ -44,10 +47,10 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     super.initState();
     _animController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1200),
+      duration: const Duration(milliseconds: 1400),
     );
 
-    _scaleAnimation = Tween<double>(begin: 0.9, end: 1.0).animate(
+    _scaleAnimation = Tween<double>(begin: 0.92, end: 1.0).animate(
       CurvedAnimation(parent: _animController, curve: Curves.easeOutCubic),
     );
 
@@ -60,27 +63,23 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
   }
 
   Future<void> _runInitialization() async {
-    // 1. Safety engine
+    // Snappy 1-1.5 second sequence checking real local subsystem ready states
     setState(() => _safetyReady = true);
-    await Future.delayed(const Duration(milliseconds: 120));
+    await Future.delayed(const Duration(milliseconds: 90));
 
-    // 2. Alert engine channels
     setState(() => _alertsReady = true);
-    await Future.delayed(const Duration(milliseconds: 120));
+    await Future.delayed(const Duration(milliseconds: 90));
 
-    // 3. Offline map resources check
     await widget.offlineMapService.initialize();
     if (mounted) setState(() => _mapReady = true);
-    await Future.delayed(const Duration(milliseconds: 120));
+    await Future.delayed(const Duration(milliseconds: 90));
 
-    // 4. Check AI model status
     await widget.modelManager.checkModelStatus();
     if (mounted) setState(() => _aiChecked = true);
-    await Future.delayed(const Duration(milliseconds: 120));
+    await Future.delayed(const Duration(milliseconds: 90));
 
-    // 5. GPS fix check
     if (mounted) setState(() => _gpsReady = true);
-    await Future.delayed(const Duration(milliseconds: 250));
+    await Future.delayed(const Duration(milliseconds: 200));
 
     if (mounted) {
       widget.onFinished();
@@ -95,107 +94,140 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final reduced = AppMotion.isReducedMotion(context);
 
     return Scaffold(
-      backgroundColor: BsasColors.background(isDark),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: BsasSpacing.xl),
-          child: FadeTransition(
-            opacity: _fadeAnimation,
-            child: ScaleTransition(
-              scale: _scaleAnimation,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const BsasLogo(size: 88, animated: true),
-                  const SizedBox(height: BsasSpacing.xl),
-                  Text(
-                    'BSAS',
-                    style: BsasTypography.heading.copyWith(
-                      fontSize: 32,
-                      letterSpacing: 2.0,
-                      fontWeight: FontWeight.w800,
-                      color: BsasColors.text(isDark),
-                    ),
-                  ),
-                  const SizedBox(height: BsasSpacing.xs),
-                  Text(
-                    'BORDER SAFETY ALERT SYSTEM',
-                    style: BsasTypography.monospace.copyWith(
-                      letterSpacing: 2.5,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 11,
-                      color: isDark ? BsasColors.radarCyan : BsasColors.primaryBlue,
-                    ),
-                  ),
-                  const SizedBox(height: BsasSpacing.xxl),
+      backgroundColor: BsasColors.darkBackground,
+      body: Stack(
+        children: [
+          // Subtle tactical radar grid sweep
+          if (!reduced)
+            Positioned.fill(
+              child: AnimatedBuilder(
+                animation: _animController,
+                builder: (context, _) {
+                  return CustomPaint(
+                    painter: _RadarGridPainter(progress: _animController.value),
+                  );
+                },
+              ),
+            ),
 
-                  // Diagnostics Checklist Card
-                  Container(
-                    padding: const EdgeInsets.all(BsasSpacing.lg),
-                    decoration: BoxDecoration(
-                      color: BsasColors.card(isDark),
-                      borderRadius: BorderRadius.circular(BsasSpacing.cardRadius),
-                      border: Border.all(
-                        color: BsasColors.border(isDark),
-                        width: 1,
-                      ),
-                      boxShadow: isDark
-                          ? [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.2),
-                                blurRadius: 12,
-                                offset: const Offset(0, 4),
-                              )
-                            ]
-                          : [
-                              BoxShadow(
-                                color: BsasColors.lightBorder,
-                                blurRadius: 12,
-                                offset: const Offset(0, 4),
-                              )
-                            ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: BsasSpacing.md),
-                          child: Text(
-                            'BOOT SEQUENCE INITIATED',
-                            style: BsasTypography.monospace.copyWith(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w700,
-                              color: BsasColors.textSec(isDark),
-                              letterSpacing: 1.0,
-                            ),
-                          ),
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: BsasSpacing.xl),
+              child: FadeTransition(
+                opacity: _fadeAnimation,
+                child: ScaleTransition(
+                  scale: _scaleAnimation,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const BsasLogo(size: 88, animated: true),
+                      const SizedBox(height: BsasSpacing.lg),
+                      Text(
+                        'BSAS',
+                        style: BsasTypography.heading.copyWith(
+                          fontSize: 32,
+                          letterSpacing: 3.0,
+                          fontWeight: FontWeight.w900,
+                          color: BsasColors.textLightPrimary,
                         ),
-                        _checkItem('Deterministic Risk Engine', _safetyReady, isDark),
-                        const SizedBox(height: BsasSpacing.md),
-                        _checkItem('Alert Channels (Sound/TTS)', _alertsReady, isDark),
-                        const SizedBox(height: BsasSpacing.md),
-                        _checkItem('Offline Map Tile Storage', _mapReady, isDark),
-                        const SizedBox(height: BsasSpacing.md),
-                        _checkItem('On-Device Local AI Runtime', _aiChecked, isDark),
-                        const SizedBox(height: BsasSpacing.md),
-                        _checkItem('GNSS Hardware Geolocation', _gpsReady, isDark),
-                      ],
-                    ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'BORDER SAFETY & ALERT SYSTEM',
+                        textAlign: TextAlign.center,
+                        style: BsasTypography.monospace.copyWith(
+                          letterSpacing: 2.5,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 11,
+                          color: BsasColors.primaryBlueLight,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'GEOSPATIAL SAFETY PLATFORM',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: BsasColors.textLightMuted,
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 1.8,
+                        ),
+                      ),
+                      const SizedBox(height: BsasSpacing.xl),
+
+                      // Boot sequence card
+                      Container(
+                        padding: const EdgeInsets.all(BsasSpacing.md),
+                        decoration: BoxDecoration(
+                          color: BsasColors.darkSurface.withValues(alpha: 0.85),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: BsasColors.darkBorder,
+                            width: 1,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.35),
+                              blurRadius: 16,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 6,
+                                    height: 6,
+                                    decoration: const BoxDecoration(
+                                      color: BsasColors.primaryBlueLight,
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'SUBSYSTEM VERIFICATION',
+                                    style: BsasTypography.monospace.copyWith(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w700,
+                                      color: BsasColors.textLightMuted,
+                                      letterSpacing: 1.0,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            _checkItem('Deterministic Risk Engine', _safetyReady),
+                            const SizedBox(height: 10),
+                            _checkItem('Alert Channels (Sound / TTS)', _alertsReady),
+                            const SizedBox(height: 10),
+                            _checkItem('Offline Map Tile Storage', _mapReady),
+                            const SizedBox(height: 10),
+                            _checkItem('On-Device Local AI Runtime', _aiChecked),
+                            const SizedBox(height: 10),
+                            _checkItem('GNSS Hardware Geolocation', _gpsReady),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }
 
-  Widget _checkItem(String label, bool isReady, bool isDark) {
+  Widget _checkItem(String label, bool isReady) {
     return Row(
       children: [
         StatusDot(
@@ -209,7 +241,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
             label.toUpperCase(),
             style: BsasTypography.monospace.copyWith(
               fontSize: 11,
-              color: BsasColors.text(isDark),
+              color: BsasColors.textLightPrimary,
               fontWeight: isReady ? FontWeight.w700 : FontWeight.w500,
             ),
           ),
@@ -217,15 +249,58 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
         if (isReady)
           const Icon(Icons.check, size: 16, color: BsasColors.safeGreen)
         else
-          SizedBox(
+          const SizedBox(
             width: 12,
             height: 12,
             child: CircularProgressIndicator(
-              strokeWidth: 2.0, 
-              color: isDark ? BsasColors.radarCyan : BsasColors.primaryBlue,
+              strokeWidth: 2.0,
+              color: BsasColors.primaryBlueLight,
             ),
           ),
       ],
     );
   }
+}
+
+class _RadarGridPainter extends CustomPainter {
+  _RadarGridPainter({required this.progress});
+
+  final double progress;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+
+    final linePaint = Paint()
+      ..color = BsasColors.primaryBlueLight.withValues(alpha: 0.04)
+      ..strokeWidth = 1.0;
+
+    // Concentric boundary radar circles
+    for (double r = 60; r < size.width; r += 70) {
+      canvas.drawCircle(center, r, linePaint);
+    }
+
+    // Rotating radar sweep
+    final sweepAngle = progress * 2 * math.pi;
+    final sweepPaint = Paint()
+      ..shader = SweepGradient(
+        center: Alignment.center,
+        startAngle: 0,
+        endAngle: 2 * math.pi,
+        transform: GradientRotation(sweepAngle),
+        colors: [
+          Colors.transparent,
+          BsasColors.primaryBlueLight.withValues(alpha: 0.06),
+          Colors.transparent,
+        ],
+        stops: const [0.0, 0.25, 0.5],
+      ).createShader(Rect.fromCircle(center: center, radius: size.width))
+      ..style = PaintingStyle.fill;
+
+    canvas.drawCircle(center, size.width * 0.8, sweepPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _RadarGridPainter oldDelegate) =>
+      oldDelegate.progress != progress;
 }

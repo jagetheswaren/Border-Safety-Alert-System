@@ -5,7 +5,11 @@ import 'dart:math' as math;
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import 'package:sqflite/sqflite.dart';
+
+import '../database/app_database.dart';
 
 enum OfflineMapStatus {
   notAvailable,
@@ -41,10 +45,81 @@ class OfflineRegion {
   final int minZoom;
   final int maxZoom;
   final String version;
+
+  String toBoundsGeoJson() {
+    return jsonEncode({
+      'type': 'Polygon',
+      'coordinates': [
+        [
+          [minLon, minLat],
+          [maxLon, minLat],
+          [maxLon, maxLat],
+          [minLon, maxLat],
+          [minLon, minLat],
+        ]
+      ]
+    });
+  }
+}
+
+class OfflineRegionRecord {
+  final String id;
+  final String name;
+  final int minZoom;
+  final int maxZoom;
+  final String boundsGeoJson;
+  final int tileCount;
+  final int sizeBytes;
+  final String status;
+  final String? downloadedAt;
+  final String? checksum;
+
+  const OfflineRegionRecord({
+    required this.id,
+    required this.name,
+    required this.minZoom,
+    required this.maxZoom,
+    required this.boundsGeoJson,
+    required this.tileCount,
+    required this.sizeBytes,
+    required this.status,
+    this.downloadedAt,
+    this.checksum,
+  });
+
+  double get sizeMb => sizeBytes / (1024 * 1024);
+
+  Map<String, dynamic> toMap() => {
+        'id': id,
+        'name': name,
+        'min_zoom': minZoom,
+        'max_zoom': maxZoom,
+        'bounds_geojson': boundsGeoJson,
+        'tile_count': tileCount,
+        'size_bytes': sizeBytes,
+        'status': status,
+        'downloaded_at': downloadedAt,
+        'checksum': checksum,
+      };
+
+  factory OfflineRegionRecord.fromMap(Map<String, dynamic> map) => OfflineRegionRecord(
+        id: map['id'] as String,
+        name: map['name'] as String,
+        minZoom: (map['min_zoom'] as num).toInt(),
+        maxZoom: (map['max_zoom'] as num).toInt(),
+        boundsGeoJson: map['bounds_geojson'] as String,
+        tileCount: (map['tile_count'] as num?)?.toInt() ?? 0,
+        sizeBytes: (map['size_bytes'] as num?)?.toInt() ?? 0,
+        status: map['status'] as String,
+        downloadedAt: map['downloaded_at'] as String?,
+        checksum: map['checksum'] as String?,
+      );
 }
 
 class OfflineMapService extends ChangeNotifier {
-  OfflineMapService();
+  OfflineMapService({Database? db}) {
+    _db = db;
+  }
 
   static const defaultRegion = OfflineRegion(
     id: 'pollachi_coimbatore',
@@ -92,6 +167,7 @@ class OfflineMapService extends ChangeNotifier {
   static const osmUserAgent =
       'BSAS-offline-map/1.0 (border-safety-alert; educational field app)';
 
+  Database? _db;
   OfflineMapStatus _status = OfflineMapStatus.notAvailable;
   double _downloadProgress = 0.0;
   String? _storagePath;
@@ -112,6 +188,19 @@ class OfflineMapService extends ChangeNotifier {
   String? get manifestChecksum => _manifestChecksum;
 
   List<OfflineRegion> getAvailableRegions() => const [defaultRegion, maritimeRegion];
+
+  Future<Database?> _getDatabase({DatabaseFactory? factory}) async {
+    if (_db != null && _db!.isOpen) return _db;
+    try {
+      final selected = factory ?? databaseFactory;
+      final path = p.join(await selected.getDatabasesPath(), 'border_safety.db');
+      _db = (await AppDatabase.open(factory: selected, path: path)).db;
+      return _db;
+    } catch (e) {
+      debugPrint('OfflineMapService: SQLite open warning: $e');
+      return null;
+    }
+  }
 
   Future<Directory> _tileDir() async {
     if (_storagePath != null) return Directory(_storagePath!);
@@ -140,13 +229,104 @@ class OfflineMapService extends ChangeNotifier {
     return File('${dir.path}/manifest.json');
   }
 
-  Future<void> initialize() async {
+  Future<void> initialize({DatabaseFactory? factory}) async {
     final dir = await _tileDir();
     final manifest = await _manifestFile();
     if (!await manifest.exists()) {
       await _seedBundledTiles(dir);
     }
     await verifyRegion(defaultRegion.id);
+    await _syncMetadataWithDatabase(factory: factory);
+  }
+
+  Future<void> _syncMetadataWithDatabase({DatabaseFactory? factory}) async {
+    try {
+      final db = await _getDatabase(factory: factory);
+      if (db == null) return;
+
+      final count = _tileCount > 0 ? _tileCount : bundledTileKeys.length;
+      final sizeBytes = (count * 18 * 1024); // Estimated bundled/cached size
+
+      final defaultRecord = OfflineRegionRecord(
+        id: defaultRegion.id,
+        name: defaultRegion.name,
+        minZoom: defaultRegion.minZoom,
+        maxZoom: defaultRegion.maxZoom,
+        boundsGeoJson: defaultRegion.toBoundsGeoJson(),
+        tileCount: count,
+        sizeBytes: sizeBytes,
+        status: isReady ? 'READY' : 'AVAILABLE',
+        downloadedAt: DateTime.now().toUtc().toIso8601String(),
+        checksum: _manifestChecksum ?? 'bundled-v1',
+      );
+
+      final maritimeRecord = OfflineRegionRecord(
+        id: maritimeRegion.id,
+        name: maritimeRegion.name,
+        minZoom: maritimeRegion.minZoom,
+        maxZoom: maritimeRegion.maxZoom,
+        boundsGeoJson: maritimeRegion.toBoundsGeoJson(),
+        tileCount: 0,
+        sizeBytes: 0,
+        status: 'AVAILABLE',
+        downloadedAt: null,
+        checksum: null,
+      );
+
+      await db.insert(
+        AppDatabase.tableOfflineRegions,
+        defaultRecord.toMap(),
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+      await db.insert(
+        AppDatabase.tableOfflineRegions,
+        maritimeRecord.toMap(),
+        conflictAlgorithm: ConflictAlgorithm.ignore,
+      );
+    } catch (e) {
+      debugPrint('OfflineMapService: syncMetadata error: $e');
+    }
+  }
+
+  Future<List<OfflineRegionRecord>> getStoredRegions({DatabaseFactory? factory}) async {
+    try {
+      final db = await _getDatabase(factory: factory);
+      if (db == null) {
+        return [
+          OfflineRegionRecord(
+            id: defaultRegion.id,
+            name: defaultRegion.name,
+            minZoom: defaultRegion.minZoom,
+            maxZoom: defaultRegion.maxZoom,
+            boundsGeoJson: defaultRegion.toBoundsGeoJson(),
+            tileCount: _tileCount,
+            sizeBytes: (_tileCount * 18 * 1024),
+            status: isReady ? 'READY' : 'AVAILABLE',
+            downloadedAt: DateTime.now().toUtc().toIso8601String(),
+          ),
+          OfflineRegionRecord(
+            id: maritimeRegion.id,
+            name: maritimeRegion.name,
+            minZoom: maritimeRegion.minZoom,
+            maxZoom: maritimeRegion.maxZoom,
+            boundsGeoJson: maritimeRegion.toBoundsGeoJson(),
+            tileCount: 0,
+            sizeBytes: 0,
+            status: 'AVAILABLE',
+          ),
+        ];
+      }
+      final rows = await db.query(AppDatabase.tableOfflineRegions);
+      if (rows.isEmpty) {
+        await _syncMetadataWithDatabase(factory: factory);
+        final freshRows = await db.query(AppDatabase.tableOfflineRegions);
+        return freshRows.map(OfflineRegionRecord.fromMap).toList();
+      }
+      return rows.map(OfflineRegionRecord.fromMap).toList();
+    } catch (e) {
+      debugPrint('OfflineMapService: getStoredRegions error: $e');
+      return [];
+    }
   }
 
   Future<bool> isRegionAvailable() async {
@@ -160,37 +340,32 @@ class OfflineMapService extends ChangeNotifier {
       try {
         manifestJson = await rootBundle.loadString('assets/maps/offline_tiles/manifest.json');
       } catch (_) {
-        manifestJson = jsonEncode({
-          'id': defaultRegion.id,
-          'version': defaultRegion.version,
-          'min_zoom': defaultRegion.minZoom,
-          'max_zoom': defaultRegion.maxZoom,
-          'expected_tiles': bundledTileKeys.length,
-          'actual_tiles': bundledTileKeys.length,
-          'checksum': 'bundled-seed-${defaultRegion.version}',
-          'prepared_at': DateTime.now().toUtc().toIso8601String(),
-        });
+        return false;
       }
       final manifestFile = File('${dir.path}/manifest.json');
       await manifestFile.writeAsString(manifestJson, flush: true);
 
       // Extract each bundled tile from assets to disk
+      int extractedCount = 0;
       for (final key in bundledTileKeys) {
         final dest = File('${dir.path}/$key.png');
         if (!dest.existsSync()) {
           dest.parent.createSync(recursive: true);
           try {
             final byteData = await rootBundle.load('assets/maps/offline_tiles/$key.png');
-            await dest.writeAsBytes(
-              byteData.buffer.asUint8List(byteData.offsetInBytes, byteData.lengthInBytes),
-              flush: true,
-            );
+            final bytes = byteData.buffer.asUint8List(byteData.offsetInBytes, byteData.lengthInBytes);
+            if (bytes.length >= 64) {
+              await dest.writeAsBytes(bytes, flush: true);
+              extractedCount++;
+            }
           } catch (_) {
-            // If individual asset load fails, continue
+            // Asset load fails if file does not exist
           }
+        } else if (dest.lengthSync() >= 64) {
+          extractedCount++;
         }
       }
-      return true;
+      return extractedCount > 0;
     } catch (e) {
       debugPrint('OfflineMapService: seed bundled tiles notice: $e');
       return false;
@@ -207,23 +382,29 @@ class OfflineMapService extends ChangeNotifier {
         await _seedBundledTiles(dir);
       }
 
-      if (!await manifest.exists()) {
+      final counted = await _countTiles(dir);
+      _tileCount = counted;
+      _storageMb = await getStorageUsageMb();
+
+      if (!await manifest.exists() || counted == 0) {
         _status = OfflineMapStatus.notAvailable;
-        _tileCount = await _countTiles(dir);
-        _storageMb = await getStorageUsageMb();
+        _errorMessage = 'No verified local tile files on disk.';
         notifyListeners();
         return;
       }
+
       final data = jsonDecode(await manifest.readAsString()) as Map<String, dynamic>;
       final version = data['version'] as String? ?? '';
-
-      final counted = await _countTiles(dir);
-      _tileCount = counted > 0 ? counted : bundledTileKeys.length;
-      _storageMb = await getStorageUsageMb();
+      final expected = (data['expected_tiles'] as num?)?.toInt() ?? bundledTileKeys.length;
       _manifestChecksum = data['checksum'] as String?;
 
       if (version != defaultRegion.version && version != maritimeRegion.version) {
         _status = OfflineMapStatus.outdated;
+        _errorMessage = 'Local offline map version ($version) is outdated.';
+      } else if (counted < (expected * 0.9).floor()) {
+        // Honest partial / corrupted status: actual tiles are significantly missing
+        _status = OfflineMapStatus.corrupted;
+        _errorMessage = 'Incomplete tile bundle: found $counted of $expected expected tiles.';
       } else {
         _status = OfflineMapStatus.ready;
         _errorMessage = null;
@@ -247,7 +428,15 @@ class OfflineMapService extends ChangeNotifier {
     } catch (_) {}
   }
 
-  Future<void> downloadRegion(String regionId) async {
+  int estimateTileCount(OfflineRegion region, {int? minZoom, int? maxZoom}) {
+    return _enumerateTiles(region, minZoom: minZoom, maxZoom: maxZoom).length;
+  }
+
+  double estimateMb(int tileCount) {
+    return (tileCount * 18.0) / 1024.0;
+  }
+
+  Future<void> downloadRegion(String regionId, {int? minZoom, int? maxZoom}) async {
     final region = getAvailableRegions().firstWhere(
       (r) => r.id == regionId,
       orElse: () => defaultRegion,
@@ -258,8 +447,18 @@ class OfflineMapService extends ChangeNotifier {
     notifyListeners();
 
     try {
+      final db = await _getDatabase();
+      if (db != null) {
+        await db.update(
+          AppDatabase.tableOfflineRegions,
+          {'status': 'DOWNLOADING'},
+          where: 'id = ?',
+          whereArgs: [regionId],
+        );
+      }
+
       final dir = await _tileDir();
-      final tiles = _enumerateTiles(region);
+      final tiles = _enumerateTiles(region, minZoom: minZoom, maxZoom: maxZoom);
       if (tiles.isEmpty) {
         throw StateError('Region produced zero tiles.');
       }
@@ -269,14 +468,15 @@ class OfflineMapService extends ChangeNotifier {
         final file = File('${dir.path}/${tile.$1}/${tile.$2}/${tile.$3}.png');
         if (!await file.exists()) {
           await file.parent.create(recursive: true);
+          // Use ArcGIS World Street Map licensed raster tiles ({z}/{y}/{x})
           final uri = Uri.parse(
-            'https://tile.openstreetmap.org/${tile.$1}/${tile.$2}/${tile.$3}.png',
+            'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/${tile.$1}/${tile.$3}/${tile.$2}',
           );
           final req = await client.getUrl(uri);
           req.headers.set(HttpHeaders.userAgentHeader, osmUserAgent);
           final res = await req.close();
           if (res.statusCode != 200) {
-            throw HttpException('OSM tile HTTP ${res.statusCode} for $uri');
+            throw HttpException('Map tile HTTP ${res.statusCode} for $uri');
           }
           final bytes = await consolidateHttpClientResponseBytes(res);
           if (bytes.length < 64) {
@@ -297,8 +497,8 @@ class OfflineMapService extends ChangeNotifier {
       final manifest = {
         'id': region.id,
         'version': region.version,
-        'min_zoom': region.minZoom,
-        'max_zoom': region.maxZoom,
+        'min_zoom': minZoom ?? region.minZoom,
+        'max_zoom': maxZoom ?? region.maxZoom,
         'expected_tiles': tiles.length,
         'actual_tiles': counted,
         'checksum': checksum,
@@ -307,9 +507,39 @@ class OfflineMapService extends ChangeNotifier {
       await (await _manifestFile()).writeAsString(jsonEncode(manifest));
       _manifestChecksum = checksum;
       await verifyRegion(region.id);
+
+      final usageBytes = (await getStorageUsageMb() * 1024 * 1024).toInt();
+      if (db != null) {
+        final record = OfflineRegionRecord(
+          id: region.id,
+          name: region.name,
+          minZoom: minZoom ?? region.minZoom,
+          maxZoom: maxZoom ?? region.maxZoom,
+          boundsGeoJson: region.toBoundsGeoJson(),
+          tileCount: counted,
+          sizeBytes: usageBytes,
+          status: 'READY',
+          downloadedAt: DateTime.now().toUtc().toIso8601String(),
+          checksum: checksum,
+        );
+        await db.insert(
+          AppDatabase.tableOfflineRegions,
+          record.toMap(),
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
     } catch (e) {
       _status = OfflineMapStatus.error;
       _errorMessage = '$e';
+      final db = await _getDatabase();
+      if (db != null) {
+        await db.update(
+          AppDatabase.tableOfflineRegions,
+          {'status': 'ERROR'},
+          where: 'id = ?',
+          whereArgs: [regionId],
+        );
+      }
       notifyListeners();
     }
   }
@@ -327,6 +557,22 @@ class OfflineMapService extends ChangeNotifier {
       _storageMb = 0;
       _manifestChecksum = null;
       _status = OfflineMapStatus.notAvailable;
+
+      final db = await _getDatabase();
+      if (db != null) {
+        await db.update(
+          AppDatabase.tableOfflineRegions,
+          {
+            'status': 'AVAILABLE',
+            'tile_count': 0,
+            'size_bytes': 0,
+            'downloaded_at': null,
+            'checksum': null,
+          },
+          where: 'id = ?',
+          whereArgs: [regionId],
+        );
+      }
     } catch (e) {
       _status = OfflineMapStatus.error;
       _errorMessage = '$e';
@@ -351,9 +597,11 @@ class OfflineMapService extends ChangeNotifier {
     return File('$root/$z/$x/$y.png');
   }
 
-  List<(int, int, int)> _enumerateTiles(OfflineRegion region) {
+  List<(int, int, int)> _enumerateTiles(OfflineRegion region, {int? minZoom, int? maxZoom}) {
     final tiles = <(int, int, int)>[];
-    for (var z = region.minZoom; z <= region.maxZoom; z++) {
+    final zStart = minZoom ?? region.minZoom;
+    final zEnd = maxZoom ?? region.maxZoom;
+    for (var z = zStart; z <= zEnd; z++) {
       final xMin = _lonToTileX(region.minLon, z);
       final xMax = _lonToTileX(region.maxLon, z);
       final yMin = _latToTileY(region.maxLat, z);

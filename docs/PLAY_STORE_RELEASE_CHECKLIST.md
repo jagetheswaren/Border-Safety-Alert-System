@@ -1,7 +1,7 @@
 # Google Play Store Release Checklist — Border Safety Alert System (BSAS)
 
 **Target Release:** v1.1.0 (Production Release)  
-**Package Name:** `org.bsas.bordersafety`  
+**Package Name:** `com.bordersafety.border_safety_alert`  
 **Application Title:** Border Safety Alert System  
 **Category:** Safety / Navigation / Tools  
 **Content Rating:** Everyone (PEGI 3 / ESRB Everyone)  
@@ -13,7 +13,7 @@
 
 | Parameter | Specification | Verification Status |
 | :--- | :--- | :--- |
-| **Application ID** | `org.bsas.bordersafety` | **PASS** — Verified in `android/app/build.gradle.kts` |
+| **Application ID** | `com.bordersafety.border_safety_alert` | **PASS** — Verified in `android/app/build.gradle.kts` |
 | **Version Name** | `1.1.0` | **PASS** — Bumped from `1.0.0` for production release |
 | **Version Code** | `2` | **PASS** — Sequential integer for Play Console tracks |
 | **Minimum SDK** | API 24 (Android 7.0 Nougat) | **PASS** — Covers >95% active global devices |

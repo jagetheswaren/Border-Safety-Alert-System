@@ -1,0 +1,14 @@
+# =========================================================================
+# BSAS Android Release Keystore Configuration Template
+# =========================================================================
+# Copy this file to `android/key.properties` for production release signing.
+# DO NOT COMMIT `key.properties` OR YOUR `.keystore` / `.jks` FILE!
+#
+# Generate a production keystore using keytool:
+# keytool -genkey -v -keystore bsas-release.keystore -alias bsas_release_key -keyalg RSA -keysize 2048 -validity 10000
+#
+# storeFile: Absolute path or relative to `android/app` directory
+storeFile=../bsas-release.keystore
+storePassword=your-keystore-password
+keyAlias=bsas_release_key
+keyPassword=your-key-password

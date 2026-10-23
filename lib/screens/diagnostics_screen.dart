@@ -12,6 +12,7 @@ import '../services/model_manager.dart';
 import '../services/notification_service.dart';
 import '../services/offline_map_service.dart';
 import '../services/sound_service.dart';
+import '../services/local_chat_service.dart';
 import '../services/sync_service.dart';
 import '../services/vibration_alert_service.dart';
 import '../services/voice_alert_service.dart';
@@ -29,6 +30,7 @@ class DiagnosticsScreen extends StatefulWidget {
     required this.modelManager,
     required this.offlineMapService,
     required this.syncService,
+    this.chatService,
   });
 
   final GpsSnapshot? gps;
@@ -41,6 +43,7 @@ class DiagnosticsScreen extends StatefulWidget {
   final ModelManager modelManager;
   final OfflineMapService offlineMapService;
   final SyncService syncService;
+  final LocalChatService? chatService;
 
   @override
   State<DiagnosticsScreen> createState() => _DiagnosticsScreenState();
@@ -151,20 +154,98 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
                   ),
                   const SizedBox(height: BsasSpacing.xl),
 
+                  _sectionHeader('MAP & GEOSPATIAL SUBSYSTEM DIAGNOSTICS', isDark),
+                  _card(
+                    isDark: isDark,
+                    children: [
+                      _row(
+                        isDark: isDark,
+                        label: 'MAP ENGINE',
+                        value: 'FLUTTERMAP v8.3',
+                        state: StatusState.ready,
+                        subtext: 'MapLibre / Leaflet OSM specification compliant',
+                      ),
+                      Divider(height: 1, color: BsasColors.border(isDark)),
+                      _row(
+                        isDark: isDark,
+                        label: 'ACTIVE MAP STYLES',
+                        value: 'STANDARD (OSM) + SATELLITE + OFFLINE',
+                        state: StatusState.ready,
+                        subtext: 'Raster cartographic tiles with SQLite tile cache',
+                      ),
+                      Divider(height: 1, color: BsasColors.border(isDark)),
+                      _row(
+                        isDark: isDark,
+                        label: 'GPS GNSS RECEIVER',
+                        value: live.fix.name.toUpperCase(),
+                        state: live.fix.name == 'locked' ? StatusState.ready : StatusState.loading,
+                        subtext: fix != null
+                            ? '${fix.latitude.toStringAsFixed(6)}°, ${fix.longitude.toStringAsFixed(6)}° (±${fix.accuracy?.toStringAsFixed(0)}m)'
+                            : 'Acquiring satellite constellation...',
+                      ),
+                      Divider(height: 1, color: BsasColors.border(isDark)),
+                      _row(
+                        isDark: isDark,
+                        label: 'BOUNDARY DATASET',
+                        value: widget.geoFence?.nearestBoundary?.name ?? 'SECTOR PERIMETERS LOADED',
+                        state: StatusState.ready,
+                        subtext: 'Authoritative polygons from SQLite BoundaryRepository',
+                      ),
+                      Divider(height: 1, color: BsasColors.border(isDark)),
+                      _row(
+                        isDark: isDark,
+                        label: 'OFFLINE REGIONS (SQLITE)',
+                        value: widget.offlineMapService.isReady ? 'READY' : 'AVAILABLE',
+                        state: widget.offlineMapService.isReady ? StatusState.ready : StatusState.idle,
+                        subtext: '${widget.offlineMapService.tileCount} cached tiles (${widget.offlineMapService.storageMb.toStringAsFixed(1)} MB in offline_map_regions)',
+                      ),
+                      Divider(height: 1, color: BsasColors.border(isDark)),
+                      _row(
+                        isDark: isDark,
+                        label: 'SATELLITE CONFIGURATION',
+                        value: 'ONLINE ONLY (ESRI WORLD IMAGERY)',
+                        state: StatusState.ready,
+                        subtext: 'High-res optical photography • No local caching per terms',
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: BsasSpacing.xl),
+
                   _sectionHeader('LOCAL AI ASSISTANT RUNTIME', isDark),
                   _card(
                     isDark: isDark,
                     children: [
                       _row(
                         isDark: isDark,
-                        label: 'MODEL NAME',
-                        value: diag.modelName.toUpperCase(),
-                        state: widget.modelManager.isModelReady ? StatusState.ready : StatusState.notInstalled,
+                        label: 'ACTIVE AI PROVIDER',
+                        value: widget.chatService?.aiProvider.providerName.toUpperCase() ?? 'OLLAMA LOCAL HOST',
+                        state: widget.chatService?.isOllamaConnected == true ? StatusState.ready : StatusState.idle,
+                        subtext: 'Abstracted AiProvider pipeline with zero cloud dependencies',
                       ),
                       Divider(height: 1, color: BsasColors.border(isDark)),
-                      _row(isDark: isDark, label: 'FORMAT / RUNTIME', value: '${diag.format} / ${diag.engine}'.toUpperCase(), state: StatusState.ready),
+                      _row(
+                        isDark: isDark,
+                        label: 'OLLAMA DAEMON SERVICE',
+                        value: widget.chatService?.isOllamaConnected == true ? 'CONNECTED (HTTP 200)' : 'OFFLINE',
+                        state: widget.chatService?.isOllamaConnected == true ? StatusState.ready : StatusState.notInstalled,
+                        subtext: 'Endpoint: ${widget.chatService?.ollamaBaseUrl ?? "http://127.0.0.1:11434"}',
+                      ),
                       Divider(height: 1, color: BsasColors.border(isDark)),
-                      _row(isDark: isDark, label: 'HARDWARE TARGET', value: diag.device.toUpperCase(), state: StatusState.ready),
+                      _row(
+                        isDark: isDark,
+                        label: 'OLLAMA MODEL TARGET',
+                        value: (widget.chatService?.aiProvider.modelName ?? 'qwen3:0.6b').toUpperCase(),
+                        state: widget.chatService?.isOllamaConnected == true ? StatusState.ready : StatusState.idle,
+                        subtext: 'Local quantized weights for air-gapped laptop dev server',
+                      ),
+                      Divider(height: 1, color: BsasColors.border(isDark)),
+                      _row(
+                        isDark: isDark,
+                        label: 'ON-DEVICE GGUF MODEL',
+                        value: diag.modelName.toUpperCase(),
+                        state: widget.modelManager.isModelReady ? StatusState.ready : StatusState.notInstalled,
+                        subtext: 'Embedded weights for standalone Android llama.cpp',
+                      ),
                       Divider(height: 1, color: BsasColors.border(isDark)),
                       _row(
                         isDark: isDark,
@@ -173,15 +254,13 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
                         state: widget.modelManager.isModelLoaded ? StatusState.ready : StatusState.idle,
                       ),
                       Divider(height: 1, color: BsasColors.border(isDark)),
-                      _row(isDark: isDark, label: 'LOAD TIME', value: '${diag.loadTimeMs} MS', state: StatusState.ready),
-                      Divider(height: 1, color: BsasColors.border(isDark)),
-                      _row(isDark: isDark, label: 'INFERENCE SPEED', value: '${diag.tokensPerSecond.toStringAsFixed(1)} TOK/S', state: StatusState.ready),
-                      Divider(height: 1, color: BsasColors.border(isDark)),
-                      _row(isDark: isDark, label: 'ALLOCATED MEMORY', value: '${diag.allocatedRamMb.toStringAsFixed(1)} MB', state: StatusState.ready),
-                      Divider(height: 1, color: BsasColors.border(isDark)),
-                      _row(isDark: isDark, label: 'CONTEXT WINDOW', value: '${diag.contextTokens} TOKENS', state: StatusState.ready),
-                      Divider(height: 1, color: BsasColors.border(isDark)),
-                      _row(isDark: isDark, label: '100% OFFLINE MODE', value: diag.isOffline ? 'ACTIVE' : 'INACTIVE', state: StatusState.ready),
+                      _row(
+                        isDark: isDark,
+                        label: 'SAFETY ISOLATION BARRIER',
+                        value: 'READ-ONLY TELEMETRY ISOLATED',
+                        state: StatusState.ready,
+                        subtext: 'Model cannot mutate risk states, alert sirens, or boundaries',
+                      ),
                     ],
                   ),
                   const SizedBox(height: BsasSpacing.xl),

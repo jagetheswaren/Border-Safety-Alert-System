@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:latlong2/latlong.dart';
 
 import 'models/alert_preferences.dart';
 import 'models/alert_severity.dart';
@@ -31,6 +32,7 @@ import 'services/sync_service.dart';
 import 'services/tracking_service.dart';
 import 'services/vibration_alert_service.dart';
 import 'services/voice_alert_service.dart';
+import 'core/widgets/bsas_bottom_nav.dart';
 import 'theme/app_theme.dart';
 
 class BorderSafetyApp extends StatefulWidget {
@@ -72,8 +74,9 @@ class _BorderSafetyAppState extends State<BorderSafetyApp> {
 
     return MaterialApp(
       title: 'Border Safety Alert System',
-      theme: AppTheme.light,
+      theme: AppTheme.dark,
       darkTheme: AppTheme.dark,
+      themeMode: ThemeMode.dark,
       home: _displayingSplash
           ? SplashScreen(
               gpsService: gps,
@@ -250,7 +253,16 @@ class _AppShellState extends State<AppShell> {
     unawaited(_alertPreferencesStore.save(preferences));
   }
 
-  void _go(int index) => setState(() => _index = index);
+  LatLng? _targetMapCoordinate;
+
+  void _go(int index, {LatLng? target}) {
+    setState(() {
+      _index = index;
+      if (target != null) {
+        _targetMapCoordinate = target;
+      }
+    });
+  }
 
   void _openDiagnostics() {
     Navigator.of(context).push(
@@ -266,6 +278,7 @@ class _AppShellState extends State<AppShell> {
           modelManager: _modelManager,
           offlineMapService: _offlineMapService,
           syncService: _syncService,
+          chatService: _chatService,
         ),
       ),
     );
@@ -299,6 +312,10 @@ class _AppShellState extends State<AppShell> {
             geoFence: _geoFenceResult,
             trackingService: _trackingService,
             offlineMapService: _offlineMapService,
+            eventStore: _eventStore,
+            loadBoundaries: (widget.boundaryProvider ?? OfflineBoundaryProvider())
+                .loadEnabledBoundaries,
+            targetCoordinate: _targetMapCoordinate,
           ),
           SafetyScreen(gps: gps, geoFence: _geoFenceResult),
           RouteScreen(
@@ -330,18 +347,17 @@ class _AppShellState extends State<AppShell> {
         return Scaffold(
           key: const Key('app-shell'),
           body: IndexedStack(index: _index, children: screens),
-          bottomNavigationBar: NavigationBar(
-            key: const Key('bottom-nav'),
+          bottomNavigationBar: BSASBottomNav(
             selectedIndex: _index,
             onDestinationSelected: _go,
             destinations: const [
-              NavigationDestination(icon: Icon(Icons.home), label: 'Home'),
-              NavigationDestination(icon: Icon(Icons.map), label: 'Map'),
-              NavigationDestination(icon: Icon(Icons.shield), label: 'Safety'),
-              NavigationDestination(icon: Icon(Icons.route), label: 'Route'),
-              NavigationDestination(icon: Icon(Icons.history), label: 'History'),
-              NavigationDestination(icon: Icon(Icons.psychology), label: 'AI Chat'),
-              NavigationDestination(icon: Icon(Icons.settings), label: 'Settings'),
+              BSASNavItem(icon: Icons.home_outlined, label: 'Home'),
+              BSASNavItem(icon: Icons.map_outlined, label: 'Map'),
+              BSASNavItem(icon: Icons.shield_outlined, label: 'Safety'),
+              BSASNavItem(icon: Icons.alt_route_rounded, label: 'Route'),
+              BSASNavItem(icon: Icons.history_rounded, label: 'History'),
+              BSASNavItem(icon: Icons.psychology_outlined, label: 'AI Chat'),
+              BSASNavItem(icon: Icons.settings_outlined, label: 'Settings'),
             ],
           ),
         );

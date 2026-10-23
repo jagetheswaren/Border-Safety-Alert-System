@@ -1,0 +1,179 @@
+{
+  "type": "FeatureCollection",
+  "metadata": {
+    "source": "BSAS-OFFICIAL-SURVEY-v2.0",
+    "version": "2.0.0",
+    "authority": "Border Safety Alert System Geospatial Directorate",
+    "updated_at": "2026-10-01T00:00:00Z"
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "id": "zn_001_sector7",
+      "properties": {
+        "id": "zn_001_sector7",
+        "name": "Sector 7 Restricted Border Zone",
+        "boundary_id": "bnd_sec07_line",
+        "zone_type": "CRITICAL",
+        "severity": "CRITICAL",
+        "safety_level": "Critical Exclusion Zone",
+        "color": "#ef4444",
+        "fillOpacity": 0.35,
+        "warning_radius_m": 500.0,
+        "description": "High-security border exclusion sector with active perimeter monitoring."
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [78.10, 10.10],
+            [78.20, 10.10],
+            [78.20, 10.20],
+            [78.10, 10.20],
+            [78.10, 10.10]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "zn_002_sector4",
+      "properties": {
+        "id": "zn_002_sector4",
+        "name": "Sector 4 Warning Buffer Zone",
+        "boundary_id": "bnd_sec04_line",
+        "zone_type": "WARNING",
+        "severity": "HIGH",
+        "safety_level": "Warning Buffer Zone",
+        "color": "#f59e0b",
+        "fillOpacity": 0.25,
+        "warning_radius_m": 1000.0,
+        "description": "Secondary buffer corridor adjacent to perimeter checkpoints."
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [78.50, 10.50],
+            [78.60, 10.50],
+            [78.60, 10.60],
+            [78.50, 10.60],
+            [78.50, 10.50]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "zn_003_sector2",
+      "properties": {
+        "id": "zn_003_sector2",
+        "name": "Sector 2 Patrol Monitoring Zone",
+        "boundary_id": "bnd_sec02_line",
+        "zone_type": "AWARENESS",
+        "severity": "MEDIUM",
+        "safety_level": "Awareness Monitoring Zone",
+        "color": "#3b82f6",
+        "fillOpacity": 0.2,
+        "warning_radius_m": 2000.0,
+        "description": "Regular patrol security sector with automated monitoring posts."
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [78.30, 10.30],
+            [78.40, 10.30],
+            [78.40, 10.40],
+            [78.30, 10.40],
+            [78.30, 10.30]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "zn_004_western_ghats",
+      "properties": {
+        "id": "zn_004_western_ghats",
+        "name": "Western Ghats Demarcation Zone",
+        "boundary_id": "bnd_western_ghats_line",
+        "zone_type": "CRITICAL",
+        "severity": "CRITICAL",
+        "safety_level": "High Security Wildlife & Ridge Zone",
+        "color": "#dc2626",
+        "fillOpacity": 0.35,
+        "warning_radius_m": 400.0,
+        "description": "Western Ghats interstate border forest sector and reserve corridor."
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [76.85, 10.40],
+            [77.08, 10.40],
+            [77.08, 10.75],
+            [76.85, 10.75],
+            [76.85, 10.40]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "zn_005_anamalai_buffer",
+      "properties": {
+        "id": "zn_005_anamalai_buffer",
+        "name": "Anamalai Operational Buffer Perimeter",
+        "boundary_id": "bnd_anamalai_line",
+        "zone_type": "WARNING",
+        "severity": "HIGH",
+        "safety_level": "Buffer Zone",
+        "color": "#d97706",
+        "fillOpacity": 0.25,
+        "warning_radius_m": 800.0,
+        "description": "Operational forest boundary perimeter and early alert monitoring sector."
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [76.80, 10.35],
+            [77.15, 10.35],
+            [77.15, 10.80],
+            [76.80, 10.80],
+            [76.80, 10.35]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "zn_006_palk_strait",
+      "properties": {
+        "id": "zn_006_palk_strait",
+        "name": "Palk Strait Maritime Demarcation Sector",
+        "boundary_id": "bnd_palk_strait_line",
+        "zone_type": "CRITICAL",
+        "severity": "CRITICAL",
+        "safety_level": "International Maritime Limit",
+        "color": "#b91c1c",
+        "fillOpacity": 0.4,
+        "warning_radius_m": 1500.0,
+        "description": "International maritime boundary line and naval security sector."
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [79.25, 9.15],
+            [79.60, 9.15],
+            [79.60, 9.60],
+            [79.25, 9.60],
+            [79.25, 9.15]
+          ]
+        ]
+      }
+    }
+  ]
+}

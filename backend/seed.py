@@ -7,22 +7,52 @@ from app.models.user import User
 from app.models.zone import Zone
 from app.models.incident import Incident
 from app.models.alert import Alert
+from app.security import get_password_hash
 
 def seed_db():
     db = SessionLocal()
     
-    # 1. Admin user
+    # 1. Accounts with authentic bcrypt password hashes
     admin = db.query(User).filter(User.email == "admin@bsas.local").first()
     if not admin:
         print("Creating admin user...")
         admin = User(
             id="usr_admin_001",
             email="admin@bsas.local",
-            hashed_password="hashed_placeholder",
-            role="DISPATCHER",
+            hashed_password=get_password_hash("Admin123!"),
+            role="ADMIN",
             is_active=True
         )
         db.add(admin)
+    else:
+        # Update placeholder to real hash and ADMIN role
+        admin.hashed_password = get_password_hash("Admin123!")
+        admin.role = "ADMIN"
+        admin.is_active = True
+
+    operator = db.query(User).filter(User.email == "operator@bsas.local").first()
+    if not operator:
+        print("Creating operator user...")
+        operator = User(
+            id="usr_operator_001",
+            email="operator@bsas.local",
+            hashed_password=get_password_hash("Operator123!"),
+            role="OPERATOR",
+            is_active=True
+        )
+        db.add(operator)
+
+    field_user = db.query(User).filter(User.email == "field@bsas.local").first()
+    if not field_user:
+        print("Creating field user...")
+        field_user = User(
+            id="usr_field_001",
+            email="field@bsas.local",
+            hashed_password=get_password_hash("Field123!"),
+            role="FIELD_USER",
+            is_active=True
+        )
+        db.add(field_user)
 
     # 2. Zones
     existing_zones = db.query(Zone).first()

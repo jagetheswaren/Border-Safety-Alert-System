@@ -1,7 +1,16 @@
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+}
+
+val keystorePropertiesFile = rootProject.file("key.properties")
+val keystoreProperties = Properties()
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(FileInputStream(keystorePropertiesFile))
 }
 
 android {
@@ -15,11 +24,28 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
+    signingConfigs {
+        val storeFilePath = keystoreProperties.getProperty("storeFile")
+            ?: System.getenv("BSAS_KEYSTORE_PATH")
+        val storePasswordVal = keystoreProperties.getProperty("storePassword")
+            ?: System.getenv("BSAS_KEYSTORE_PASSWORD")
+        val keyAliasVal = keystoreProperties.getProperty("keyAlias")
+            ?: System.getenv("BSAS_KEY_ALIAS")
+        val keyPasswordVal = keystoreProperties.getProperty("keyPassword")
+            ?: System.getenv("BSAS_KEY_PASSWORD")
+
+        if (!storeFilePath.isNullOrBlank() && file(storeFilePath).exists()) {
+            create("release") {
+                storeFile = file(storeFilePath)
+                storePassword = storePasswordVal
+                keyAlias = keyAliasVal
+                keyPassword = keyPasswordVal
+            }
+        }
+    }
+
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "com.bordersafety.border_safety_alert"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
@@ -28,8 +54,15 @@ android {
 
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
+            val releaseSigningConfig = signingConfigs.findByName("release")
+            if (releaseSigningConfig != null) {
+                signingConfig = releaseSigningConfig
+            } else {
+                logger.warn("[BSAS RELEASE SIGNING] key.properties or BSAS_KEYSTORE_PATH not found. Using debug signing for local test artifact.")
+                signingConfig = signingConfigs.getByName("debug")
+            }
+        }
+        debug {
             signingConfig = signingConfigs.getByName("debug")
         }
     }

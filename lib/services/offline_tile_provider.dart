@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/widgets.dart';
 import 'package:flutter_map/flutter_map.dart';
 
@@ -29,8 +27,10 @@ class OfflineTileProvider extends TileProvider {
     }
     if (allowNetworkFallback) {
       return NetworkImage(
-        'https://tile.openstreetmap.org/${coordinates.z}/${coordinates.x}/${coordinates.y}.png',
-        headers: const {HttpHeaders.userAgentHeader: OfflineMapService.osmUserAgent},
+        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/${coordinates.z}/${coordinates.y}/${coordinates.x}',
+        headers: const {
+          'Accept': 'image/png,image/*;q=0.8,*/*;q=0.5',
+        },
       );
     }
     return const AssetImage('assets/maps/missing_tile.png');

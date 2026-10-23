@@ -17,6 +17,26 @@ class NotificationService implements NotificationAlertOutput {
 
   bool get isInitialized => _initialized;
 
+  Future<bool> requestPermission() async {
+    final androidPlugin = _notifications.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
+    if (androidPlugin != null) {
+      final granted = await androidPlugin.requestNotificationsPermission();
+      return granted ?? false;
+    }
+    return true;
+  }
+
+  Future<bool> areNotificationsEnabled() async {
+    final androidPlugin = _notifications.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
+    if (androidPlugin != null) {
+      final enabled = await androidPlugin.areNotificationsEnabled();
+      return enabled ?? true;
+    }
+    return true;
+  }
+
   static const String channelCritical = 'bsas_critical_alerts';
   static const String channelWarning = 'bsas_warning_alerts';
   static const String channelSystem = 'bsas_system_notifications';

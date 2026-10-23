@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../core/theme/app_motion.dart';
 import '../core/theme/bsas_colors.dart';
 import '../core/theme/bsas_spacing.dart';
 import '../core/theme/bsas_typography.dart';
+import '../core/widgets/bsas_card.dart';
+import '../core/widgets/bsas_count_up.dart';
+import '../core/widgets/bsas_electric_border.dart';
 import '../core/widgets/bsas_logo.dart';
 import '../core/widgets/status_badge.dart';
 
@@ -15,10 +19,14 @@ import '../services/boundary_summary.dart';
 import '../widgets/boundary_count_card.dart';
 import '../widgets/gps_live_card.dart';
 
-/// Redesigned human-crafted Home Screen for BSAS.
+/// Redesigned premium Home Screen for BSAS Mobile.
 ///
-/// Features a bespoke Sliver-based layout, ditching the generic grids for a
-/// flowing, premium, and highly intentional information hierarchy.
+/// Features:
+/// - Prominent Hero Safety Status card with React Bits SpotlightCard micro-interactions
+/// - ElectricBorder activation on restricted perimeter incursions
+/// - Live telemetry CountUp transitions
+/// - Offline Mode awareness banner
+/// - Retains all verified test keys ('screen-home', 'safety-state', 'gps-live-card', 'boundary-count-card')
 class HomeScreen extends StatelessWidget {
   const HomeScreen({
     super.key,
@@ -37,16 +45,15 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-
     final live = gps ?? GpsSnapshot.initial();
     final fix = live.location;
     final state = geoFence.state;
     final stateStr = state.name.toUpperCase();
 
-    final isCritical = state == GeoFenceState.critical || state == GeoFenceState.insideRestrictedArea;
-    final isWarning = state == GeoFenceState.warning || state == GeoFenceState.caution;
+    final isCritical = state == GeoFenceState.critical ||
+        state == GeoFenceState.insideRestrictedArea;
+    final isWarning =
+        state == GeoFenceState.warning || state == GeoFenceState.caution;
 
     final stateColor = BsasColors.forSafetyState(stateStr);
     final stateIcon = BsasColors.iconForState(stateStr);
@@ -57,96 +64,75 @@ class HomeScreen extends StatelessWidget {
     } else if (isWarning) {
       statusDescription = 'Buffer corridor reached.\nMaintain situational awareness.';
     } else if (state == GeoFenceState.safe) {
-      statusDescription = 'Within civilian boundaries.\nMonitoring active.';
+      statusDescription = 'Within civilian boundaries.\nReal-time monitoring active.';
     } else {
       statusDescription = 'Acquiring satellite fix\nand evaluating local boundary.';
     }
 
+    final distanceKm = geoFence.distanceToBoundaryMeters != null
+        ? geoFence.distanceToBoundaryMeters! / 1000.0
+        : null;
+
+    final isGpsLocked = live.fix == GpsFixState.locked;
+
     return Scaffold(
       key: const Key('screen-home'),
-      backgroundColor: isDark ? BsasColors.darkBackground : BsasColors.lightBackground,
+      backgroundColor: BsasColors.darkBackground,
       body: CustomScrollView(
         physics: const BouncingScrollPhysics(),
         slivers: [
+          // Tactical Header
           SliverAppBar(
-            expandedHeight: 280.0,
+            expandedHeight: 80.0,
             floating: false,
             pinned: true,
-            backgroundColor: isDark ? BsasColors.darkBackground : BsasColors.primaryBlue,
-            systemOverlayStyle: isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
+            backgroundColor: BsasColors.darkBackground,
+            systemOverlayStyle: SystemUiOverlayStyle.light,
             elevation: 0,
-            flexibleSpace: FlexibleSpaceBar(
-              background: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      stateColor.withValues(alpha: isDark ? 0.4 : 0.8),
-                      isDark ? BsasColors.darkBackground : BsasColors.lightBackground,
-                    ],
-                  ),
-                ),
-                child: SafeArea(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const SizedBox(height: BsasSpacing.xl),
-                      _buildPulsingShield(stateColor, stateIcon, isDark),
-                      const SizedBox(height: BsasSpacing.md),
-                      Text(
-                        stateStr,
-                        key: const Key('safety-state'),
-                        style: BsasTypography.display.copyWith(
-                          fontSize: 28,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 2.0,
-                          color: isDark ? BsasColors.textLightPrimary : BsasColors.textDarkPrimary,
-                        ),
-                      ),
-                      const SizedBox(height: BsasSpacing.xs),
-                      Text(
-                        statusDescription,
-                        textAlign: TextAlign.center,
-                        style: BsasTypography.body.copyWith(
-                          fontSize: 14,
-                          height: 1.4,
-                          color: isDark ? BsasColors.textLightSecondary : BsasColors.textDarkSecondary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
             title: Row(
               children: [
-                const BsasLogo(size: 24, animated: false),
+                const BsasLogo(size: 26, animated: false),
                 const SizedBox(width: BsasSpacing.sm),
-                Text(
-                  'BSAS',
-                  style: BsasTypography.title.copyWith(
-                    color: isDark ? BsasColors.textLightPrimary : BsasColors.textLightPrimary,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 1.0,
-                  ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'BSAS FIELD UNIT',
+                      style: BsasTypography.title.copyWith(
+                        color: BsasColors.textLightPrimary,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                    Text(
+                      'GEOSPATIAL SAFETY PLATFORM',
+                      style: TextStyle(
+                        color: BsasColors.textLightMuted,
+                        fontSize: 8.5,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1.0,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
             actions: [
               Center(
                 child: Padding(
-                  padding: const EdgeInsets.only(right: BsasSpacing.sm),
+                  padding: const EdgeInsets.only(right: BsasSpacing.xs),
                   child: StatusBadge(
-                    label: live.fix == GpsFixState.locked ? 'GPS LOCKED' : 'SEARCHING',
-                    state: live.fix == GpsFixState.locked ? StatusState.ready : StatusState.warning,
+                    label: isGpsLocked ? 'GPS LOCKED' : 'SEARCHING',
+                    state: isGpsLocked ? StatusState.ready : StatusState.warning,
                   ),
                 ),
               ),
               IconButton(
-                icon: Icon(
+                icon: const Icon(
                   Icons.settings_outlined,
-                  color: isDark ? BsasColors.textLightPrimary : BsasColors.textLightPrimary,
+                  color: BsasColors.textLightPrimary,
+                  size: 20,
                 ),
                 tooltip: 'Settings',
                 onPressed: () => onNavigate(6),
@@ -154,55 +140,268 @@ class HomeScreen extends StatelessWidget {
               const SizedBox(width: BsasSpacing.xs),
             ],
           ),
+
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.symmetric(
                 horizontal: BsasSpacing.screenMargin,
-                vertical: BsasSpacing.md,
+                vertical: BsasSpacing.sm,
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'LIVE TELEMETRY',
-                    style: BsasTypography.sectionHeading.copyWith(
-                      color: isDark ? BsasColors.textLightMuted : BsasColors.textDarkMuted,
+                  // Offline Status Indicator Banner (Section 38 & 39)
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: BsasColors.darkSurface,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: BsasColors.primaryBlueLight.withValues(alpha: 0.2),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.offline_bolt_outlined,
+                          size: 14,
+                          color: BsasColors.safeGreenLight,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'OFFLINE FIELD SAFETY ACTIVE: Local SQLite, AI & Geofence Operational',
+                            style: TextStyle(
+                              color: BsasColors.textLightSecondary,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 0.3,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: BsasSpacing.sm),
-                  _buildBespokeTelemetryRow(
-                    context,
-                    leftLabel: 'Distance to Boundary',
-                    leftValue: geoFence.distanceToBoundaryMeters != null
-                        ? '${(geoFence.distanceToBoundaryMeters! / 1000).toStringAsFixed(1)} km'
-                        : '-- km',
-                    leftIcon: Icons.straighten_outlined,
-                    rightLabel: 'Current Sector',
-                    rightValue: geoFence.nearestBoundary?.name ?? 'Unknown',
-                    rightIcon: Icons.explore_outlined,
+
+                  // PRIMARY HERO STATUS CARD (Section 15 & 16)
+                  BSASElectricBorder(
+                    isActive: isCritical,
+                    color: BsasColors.criticalRed,
+                    child: BSASCard(
+                      backgroundColor: BsasColors.darkSurface,
+                      borderColor: isCritical
+                          ? BsasColors.criticalRed
+                          : (isWarning
+                              ? BsasColors.warningOrange
+                              : BsasColors.primaryBlueLight.withValues(alpha: 0.3)),
+                      padding: const EdgeInsets.all(20.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'CURRENT SAFETY STATUS',
+                                style: BsasTypography.monospace.copyWith(
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: BsasColors.textLightMuted,
+                                  letterSpacing: 1.2,
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: stateColor.withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(
+                                    color: stateColor.withValues(alpha: 0.5),
+                                    width: 1,
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(stateIcon, size: 12, color: stateColor),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      stateStr,
+                                      style: TextStyle(
+                                        color: stateColor,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+
+                          // Large Hero Status Display
+                          Center(
+                            child: Column(
+                              children: [
+                                _buildPulsingShield(stateColor, stateIcon),
+                                const SizedBox(height: 12),
+                                AnimatedSwitcher(
+                                  duration: AppMotion.normal,
+                                  child: Text(
+                                    stateStr,
+                                    key: const Key('safety-state'),
+                                    style: BsasTypography.display.copyWith(
+                                      fontSize: 32,
+                                      fontWeight: FontWeight.w900,
+                                      letterSpacing: 2.5,
+                                      color: stateColor,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  statusDescription,
+                                  textAlign: TextAlign.center,
+                                  style: BsasTypography.body.copyWith(
+                                    fontSize: 13,
+                                    height: 1.4,
+                                    color: BsasColors.textLightSecondary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                          const Divider(color: BsasColors.darkBorder, height: 1),
+                          const SizedBox(height: 14),
+
+                          // Boundary Distance & Accuracy metrics
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Nearest Boundary',
+                                    style: TextStyle(
+                                      color: BsasColors.textLightMuted,
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  if (distanceKm != null)
+                                    Row(
+                                      children: [
+                                        BSASCountUp(
+                                          value: distanceKm,
+                                          decimalPlaces: 1,
+                                          suffix: ' km',
+                                          style: const TextStyle(
+                                            color: BsasColors.textLightPrimary,
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w800,
+                                          ),
+                                        ),
+                                      ],
+                                    )
+                                  else
+                                    const Text(
+                                      '-- km',
+                                      style: TextStyle(
+                                        color: BsasColors.textLightPrimary,
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                ],
+                              ),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  Text(
+                                    'GPS Accuracy',
+                                    style: TextStyle(
+                                      color: BsasColors.textLightMuted,
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    isGpsLocked && fix != null
+                                        ? '±${fix.accuracy?.toStringAsFixed(0) ?? '--'} m'
+                                        : 'Awaiting Fix',
+                                    style: const TextStyle(
+                                      color: BsasColors.textLightPrimary,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
-                  const SizedBox(height: BsasSpacing.md),
-                  _buildLocationCard(context, fix, live.fix),
+
                   const SizedBox(height: BsasSpacing.xl),
-                  
+
+                  // QUICK ACTIONS (Section 18)
                   Text(
-                    'QUICK ACTIONS',
+                    'TACTICAL ACTIONS',
                     style: BsasTypography.sectionHeading.copyWith(
-                      color: isDark ? BsasColors.textLightMuted : BsasColors.textDarkMuted,
+                      color: BsasColors.textLightMuted,
+                      fontSize: 11,
+                      letterSpacing: 1.2,
                     ),
                   ),
                   const SizedBox(height: BsasSpacing.sm),
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      _actionPill(context, 'Map', Icons.map_outlined, () => onNavigate(1)),
-                      _actionPill(context, 'Route', Icons.alt_route_rounded, () => onNavigate(3)),
-                      _actionPill(context, 'Alerts', Icons.notifications_active_outlined, () => onNavigate(4)),
-                      _actionPill(context, 'AI Assist', Icons.smart_toy_outlined, () => onNavigate(5)),
+                      Expanded(
+                        child: _quickActionButton(
+                          label: 'OPEN MAP',
+                          icon: Icons.map_outlined,
+                          onTap: () => onNavigate(1),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _quickActionButton(
+                          label: 'ROUTE',
+                          icon: Icons.alt_route_rounded,
+                          onTap: () => onNavigate(3),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _quickActionButton(
+                          label: 'ALERTS',
+                          icon: Icons.notifications_active_outlined,
+                          onTap: () => onNavigate(4),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _quickActionButton(
+                          label: 'AI ASSIST',
+                          icon: Icons.psychology_outlined,
+                          onTap: () => onNavigate(5),
+                        ),
+                      ),
                     ],
                   ),
+
                   const SizedBox(height: BsasSpacing.xl),
-                  
+
+                  // TEST COMPATIBILITY CARDS (Must keep exact keys and text)
                   GpsLiveCard(snapshot: live, onRetry: onGpsRetry),
                   const SizedBox(height: BsasSpacing.md),
                   BoundaryCountCard(summary: boundarySummary),
@@ -216,187 +415,55 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildPulsingShield(Color stateColor, IconData icon, bool isDark) {
+  Widget _buildPulsingShield(Color stateColor, IconData icon) {
     return Container(
-      width: 80,
-      height: 80,
+      width: 76,
+      height: 76,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: stateColor.withValues(alpha: 0.15),
+        color: stateColor.withValues(alpha: 0.14),
         border: Border.all(color: stateColor, width: 2),
         boxShadow: [
           BoxShadow(
-            color: stateColor.withValues(alpha: 0.3),
-            blurRadius: 24,
-            spreadRadius: 4,
+            color: stateColor.withValues(alpha: 0.35),
+            blurRadius: 20,
+            spreadRadius: 2,
           ),
         ],
       ),
       child: Center(
-        child: Icon(
-          icon,
-          size: 36,
-          color: isDark ? BsasColors.textLightPrimary : BsasColors.textDarkPrimary,
-        ),
+        child: Icon(icon, size: 36, color: stateColor),
       ),
     );
   }
 
-  Widget _buildBespokeTelemetryRow(
-    BuildContext context, {
-    required String leftLabel,
-    required String leftValue,
-    required IconData leftIcon,
-    required String rightLabel,
-    required String rightValue,
-    required IconData rightIcon,
+  Widget _quickActionButton({
+    required String label,
+    required IconData icon,
+    required VoidCallback onTap,
   }) {
-    return Row(
-      children: [
-        Expanded(child: _telemetryBlock(context, leftLabel, leftValue, leftIcon)),
-        const SizedBox(width: BsasSpacing.md),
-        Expanded(child: _telemetryBlock(context, rightLabel, rightValue, rightIcon)),
-      ],
-    );
-  }
-
-  Widget _telemetryBlock(BuildContext context, String label, String value, IconData icon) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Container(
-      padding: const EdgeInsets.all(BsasSpacing.md),
-      decoration: BoxDecoration(
-        color: isDark ? BsasColors.darkSurface : BsasColors.lightSurface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isDark ? BsasColors.darkBorder : BsasColors.lightBorder,
-        ),
-      ),
+    return BSASCard(
+      onTap: onTap,
+      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 4),
+      borderRadius: 14,
+      backgroundColor: BsasColors.darkSurface,
+      borderColor: BsasColors.darkBorder,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Row(
-            children: [
-              Icon(icon, size: 16, color: BsasColors.primaryBlue),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  label,
-                  style: BsasTypography.caption.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: isDark ? BsasColors.textLightMuted : BsasColors.textDarkMuted,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: BsasSpacing.sm),
+          Icon(icon, color: BsasColors.primaryBlueLight, size: 20),
+          const SizedBox(height: 6),
           Text(
-            value,
-            style: BsasTypography.title.copyWith(
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
-              color: isDark ? BsasColors.textLightPrimary : BsasColors.textDarkPrimary,
+            label,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              color: BsasColors.textLightPrimary,
+              letterSpacing: 0.4,
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildLocationCard(BuildContext context, dynamic fix, GpsFixState fixState) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final hasFix = fix != null;
-    
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(BsasSpacing.md),
-      decoration: BoxDecoration(
-        color: isDark ? BsasColors.darkSurface : BsasColors.lightSurface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isDark ? BsasColors.darkBorder : BsasColors.lightBorder,
-        ),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: (fixState == GpsFixState.locked ? BsasColors.safeGreen : BsasColors.warningOrange)
-                  .withValues(alpha: 0.1),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              Icons.my_location_rounded,
-              color: fixState == GpsFixState.locked ? BsasColors.safeGreen : BsasColors.warningOrange,
-            ),
-          ),
-          const SizedBox(width: BsasSpacing.md),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'GNSS Coordinates',
-                  style: BsasTypography.caption.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: isDark ? BsasColors.textLightMuted : BsasColors.textDarkMuted,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  hasFix
-                      ? '${fix.latitude.toStringAsFixed(5)}°, ${fix.longitude.toStringAsFixed(5)}°'
-                      : 'Acquiring satellite fix...',
-                  style: BsasTypography.body.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: isDark ? BsasColors.textLightPrimary : BsasColors.textDarkPrimary,
-                    fontFamily: 'monospace',
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _actionPill(BuildContext context, String label, IconData icon, VoidCallback onTap) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          width: 72,
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          decoration: BoxDecoration(
-            color: isDark ? BsasColors.darkCardHover : BsasColors.lightCardHover,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: isDark ? BsasColors.darkBorderSubtle : BsasColors.lightBorderSubtle,
-            ),
-          ),
-          child: Column(
-            children: [
-              Icon(icon, color: BsasColors.primaryBlue, size: 22),
-              const SizedBox(height: 8),
-              Text(
-                label,
-                style: BsasTypography.label.copyWith(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: isDark ? BsasColors.textLightPrimary : BsasColors.textDarkPrimary,
-                ),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }

@@ -65,5 +65,33 @@ function query(params: IncidentFilterParams | AlertFilterParams) {
 }
 export async function getIncidents(params: IncidentFilterParams = {}): Promise<PaginatedResponse<Incident>> { return (await request(`/incidents/${query(params)}`)).json(); }
 export async function getIncident(id: string): Promise<Incident> { return (await request(`/incidents/${encodeURIComponent(id)}`)).json(); }
+export async function updateIncidentStatus(id: string | number, status: string): Promise<Incident> {
+  return (await request(`/incidents/${encodeURIComponent(String(id))}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status }),
+  })).json();
+}
 export async function getAlerts(params: AlertFilterParams = {}): Promise<PaginatedResponse<Alert>> { return (await request(`/alerts/${query(params)}`)).json(); }
+export async function updateAlertStatus(id: string | number, update: { status?: string; is_acknowledged?: boolean }): Promise<Alert> {
+  return (await request(`/alerts/${encodeURIComponent(String(id))}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(update),
+  })).json();
+}
+export async function getLatestLocations(limit: number = 50): Promise<Record<string, unknown>[]> {
+  return (await request(`/locations/latest?limit=${limit}`)).json();
+}
+
+export async function getBorders(): Promise<Record<string, unknown>> {
+  return (await request('/borders/')).json();
+}
+
+export async function getBordersMetadata(): Promise<Record<string, unknown>> {
+  return (await request('/borders/metadata')).json();
+}
+
+
+
 

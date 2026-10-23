@@ -1,9 +1,10 @@
 import 'dart:async';
-import 'dart:convert';
-import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'ai_provider.dart';
 import 'model_manager.dart';
 import 'native_gguf_runtime.dart';
+import 'ollama_ai_provider.dart';
+import 'safety_context_builder.dart';
 
 /// Immutable read-only sensor and safety context snapshot provided to the AI.
 ///
@@ -57,7 +58,7 @@ enum ChatBackendMode {
 /// Service handling local AI interactions for BSAS.
 ///
 /// Architecture:
-/// - Development mode (Laptop): Real Ollama neural streaming over localhost:11434.
+/// - Development mode (Laptop/LAN): Real Ollama neural streaming over localhost:11434.
 /// - Production mode (Android): Native on-device Qwen3-0.6B GGUF inference via llama.cpp.
 /// - Absolute Rule: NO fake keyword engine, NO canned responses, NO simulated delays.
 ///   If neither runtime is available, yields an honest diagnostic error.
@@ -65,13 +66,20 @@ class LocalChatService extends ChangeNotifier {
   LocalChatService({
     required this.modelManager,
     NativeGgufRuntime? nativeRuntime,
+    AiProvider? aiProvider,
     this.ollamaBaseUrl = 'http://127.0.0.1:11434',
-    this.ollamaModel = 'qwen2.5:0.5b',
+    this.ollamaModel = 'qwen3:0.6b',
     this.backendMode = ChatBackendMode.auto,
-  }) : nativeRuntime = nativeRuntime ?? NativeGgufRuntime();
+  })  : nativeRuntime = nativeRuntime ?? NativeGgufRuntime(),
+        aiProvider = aiProvider ??
+            OllamaAiProvider(
+              baseUrl: ollamaBaseUrl,
+              modelName: ollamaModel,
+            );
 
   final ModelManager modelManager;
   final NativeGgufRuntime nativeRuntime;
+  final AiProvider aiProvider;
   final String ollamaBaseUrl;
   final String ollamaModel;
   ChatBackendMode backendMode;
@@ -82,32 +90,19 @@ class LocalChatService extends ChangeNotifier {
 
   bool get isGenerating => _isGenerating;
   bool get isOllamaConnected => _isOllamaConnected;
+  String get activeBaseUrl => (aiProvider is OllamaAiProvider) ? (aiProvider as OllamaAiProvider).baseUrl : ollamaBaseUrl;
 
-  static const String systemPrompt = '''
-You are the BSAS Local Safety Assistant. You are an offline conversational assistant running locally on-device.
-Your responsibilities:
-- Explain BSAS official status
-- Explain GPS status and coordinates
-- Explain geofence boundary conditions
-- Summarize alerts and system diagnostics
-- Answer general field-safety questions
-Important rules:
-- You are not the safety decision engine.
-- Never override BSAS's official risk or geofence state.
-- Never invent GPS coordinates.
-- Never invent alerts or incidents.
-- Never claim emergency services were contacted unless confirmed.
-- When data is unavailable, clearly state it is unavailable.
-- Work completely offline without cloud dependencies.
-''';
+  void updateOllamaBaseUrl(String newUrl) {
+    if (aiProvider is OllamaAiProvider) {
+      (aiProvider as OllamaAiProvider).updateBaseUrl(newUrl);
+    }
+    unawaited(checkOllamaHealth());
+  }
 
   Future<bool> checkOllamaHealth() async {
     try {
-      final client = HttpClient()..connectionTimeout = const Duration(milliseconds: 700);
-      final req = await client.getUrl(Uri.parse('$ollamaBaseUrl/api/tags'));
-      final res = await req.close().timeout(const Duration(milliseconds: 1200));
-      _isOllamaConnected = res.statusCode == 200;
-      client.close();
+      final status = await aiProvider.checkHealth();
+      _isOllamaConnected = status == AiProviderStatus.ready;
     } catch (_) {
       _isOllamaConnected = false;
     }
@@ -116,6 +111,7 @@ Important rules:
   }
 
   void cancelGeneration() {
+    aiProvider.cancel();
     if (_isGenerating && _cancelCompleter != null && !_cancelCompleter!.isCompleted) {
       _cancelCompleter!.complete();
     }
@@ -145,7 +141,12 @@ Important rules:
         if (available) {
           bool streamedAny = false;
           try {
-            await for (final token in _streamOllama(userPrompt, contextSnapshot)) {
+            await for (final token in aiProvider.generateChatStream(
+              messages: [
+                {'role': 'user', 'content': userPrompt}
+              ],
+              safetyContext: contextSnapshot,
+            )) {
               if (_cancelCompleter != null && _cancelCompleter!.isCompleted) {
                 break;
               }
@@ -193,69 +194,11 @@ Important rules:
     }
   }
 
-  Stream<String> _streamOllama(String userPrompt, SafetyContextSnapshot ctx) async* {
-    final client = HttpClient()..connectionTimeout = const Duration(seconds: 4);
-    final req = await client.postUrl(Uri.parse('$ollamaBaseUrl/api/generate'));
-    req.headers.contentType = ContentType.json;
-
-    final contextString = '''
-[CURRENT SENSOR & SAFETY CONTEXT]
-Official Risk State: ${ctx.riskState}
-Geofence State: ${ctx.zoneState}
-GPS Available: ${ctx.gpsAvailable}
-Coordinates: ${ctx.latitude?.toStringAsFixed(6) ?? "N/A"}, ${ctx.longitude?.toStringAsFixed(6) ?? "N/A"}
-Accuracy: ±${ctx.accuracyM?.toStringAsFixed(1) ?? "N/A"} m
-Speed: ${ctx.speedMps != null ? "${(ctx.speedMps! * 3.6).toStringAsFixed(1)} km/h" : "N/A"}
-Bearing: ${ctx.bearingDeg != null ? "${ctx.bearingDeg!.toStringAsFixed(0)}°" : "N/A"}
-Active Alerts: ${ctx.activeAlertCount}
-Offline Mode: ${ctx.isOffline}
-''';
-
-    final body = jsonEncode({
-      'model': ollamaModel,
-      'prompt': '$contextString\nUser Query: $userPrompt\nAssistant:',
-      'system': systemPrompt,
-      'stream': true,
-      'options': {
-        'temperature': 0.3,
-        'num_predict': 180,
-      }
-    });
-
-    req.write(body);
-    final res = await req.close();
-    if (res.statusCode != 200) {
-      client.close();
-      throw HttpException('Ollama HTTP error ${res.statusCode}');
-    }
-
-    final lines = res.transform(utf8.decoder).transform(const LineSplitter());
-    await for (final line in lines) {
-      if (_cancelCompleter != null && _cancelCompleter!.isCompleted) {
-        break;
-      }
-      if (line.trim().isEmpty) continue;
-      try {
-        final data = jsonDecode(line) as Map<String, dynamic>;
-        final token = data['response'] as String? ?? '';
-        if (token.isNotEmpty) {
-          yield token;
-        }
-        if (data['done'] == true) break;
-      } catch (_) {}
-    }
-    client.close();
-  }
-
   String _buildPrompt(String userPrompt, SafetyContextSnapshot ctx) {
+    final systemPrompt = SafetyContextBuilder.buildSystemPrompt(ctx);
     return '''
 System: $systemPrompt
-Context:
-Official Risk State: ${ctx.riskState}
-Geofence State: ${ctx.zoneState}
-GPS Available: ${ctx.gpsAvailable}
-Coordinates: ${ctx.latitude?.toStringAsFixed(6) ?? "N/A"}, ${ctx.longitude?.toStringAsFixed(6) ?? "N/A"}
-Active Alerts: ${ctx.activeAlertCount}
+
 User: $userPrompt
 Assistant:''';
   }
@@ -271,7 +214,7 @@ Assistant:''';
         '• Model File: Qwen3-0.6B-Q4_0.gguf (~429 MB)\n'
         '• Model State: $modelState ($modelDiag)\n'
         '• Native Runtime: llama.cpp (${nativeRuntime.unavailableReason ?? "libllama.so missing"})\n'
-        '• Laptop Dev Mode: Ollama server not detected at $ollamaBaseUrl\n\n'
+        '• Laptop Dev Mode: Ollama server not detected at $activeBaseUrl\n\n'
         '🛡️ Current Authoritative Telemetry (from Risk Engine & GPS):\n'
         '• Official State: ${ctx.riskState}\n'
         '• Geofence Zone: ${ctx.zoneState}\n'

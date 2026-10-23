@@ -6,8 +6,9 @@ from datetime import datetime
 
 from app.dependencies import get_db
 from app.models.alert import Alert
-from app.schemas.alert import AlertInDB, AlertCreate
+from app.schemas.alert import AlertInDB, AlertCreate, AlertUpdate
 from app.schemas.pagination import PaginatedResponse
+from datetime import datetime, timezone
 
 from app.api.auth import require_operator
 
@@ -46,6 +47,34 @@ def read_alerts(
         page=(skip // limit) + 1 if limit > 0 else 1,
         size=limit
     )
+
+@router.get("/{alert_id}", response_model=AlertInDB)
+def get_alert(alert_id: str, db: Session = Depends(get_db)):
+    alert = db.query(Alert).filter(Alert.id == alert_id).first()
+    if not alert:
+        raise HTTPException(status_code=404, detail="Alert not found")
+    return alert
+
+@router.patch("/{alert_id}", response_model=AlertInDB)
+def update_alert(alert_id: str, update: AlertUpdate, db: Session = Depends(get_db)):
+    db_alert = db.query(Alert).filter(Alert.id == alert_id).first()
+    if not db_alert:
+        raise HTTPException(status_code=404, detail="Alert not found")
+    
+    if update.title is not None:
+        db_alert.title = update.title
+    if update.message is not None:
+        db_alert.message = update.message
+    if update.severity is not None:
+        db_alert.severity = update.severity
+    if update.acknowledged is True and not db_alert.acknowledged_at:
+        db_alert.acknowledged_at = datetime.now(timezone.utc)
+    if update.resolved is True and not db_alert.resolved_at:
+        db_alert.resolved_at = datetime.now(timezone.utc)
+        
+    db.commit()
+    db.refresh(db_alert)
+    return db_alert
 
 @router.post("/", response_model=AlertInDB)
 def create_alert(alert: AlertCreate, db: Session = Depends(get_db)):

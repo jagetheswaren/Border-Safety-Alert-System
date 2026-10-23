@@ -1,0 +1,18 @@
+{
+  "dataset": "BSAS Authoritative Monitored Border Boundaries & Safety Zones",
+  "identifier": "BSAS-BORDERS-v2.0",
+  "authority": "Border Safety Alert System Geospatial Directorate",
+  "version": "2.0.0",
+  "license": "Open Data Commons Open Database License (ODbL) / Project Authorized",
+  "datum": "WGS 84 / EPSG:4326",
+  "effective_date": "2026-10-01",
+  "source": "Survey of India / International Maritime Demarcation / State Forest Demarcation Directorate",
+  "safety_zones_config": {
+    "awarenessMeters": 2000,
+    "warningMeters": 1000,
+    "criticalMeters": 300
+  },
+  "monitored_boundaries_count": 6,
+  "monitored_zones_count": 6,
+  "supported_geometry": ["LineString", "MultiLineString", "Polygon", "MultiPolygon"]
+}

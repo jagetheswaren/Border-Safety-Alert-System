@@ -47,7 +47,10 @@ class OfflineBoundaryProvider implements BoundarySummaryProvider {
       final repository = BoundaryRepository(appDb.db);
       final raw = await rootBundle.loadString(assetPath);
       final approved = parseBoundariesFromGeoJson(raw).where((b) => !b.isDemo && (b.source?.isNotEmpty ?? false) && (b.version?.isNotEmpty ?? false)).toList();
-      if (approved.isNotEmpty) await repository.insertBoundaries(approved);
+      if (approved.isNotEmpty) {
+        await repository.insertBoundaries(approved);
+        return approved.where((b) => b.enabled).toList();
+      }
       return (await repository.getEnabledBoundaries()).where((b) => !b.isDemo && (b.source?.isNotEmpty ?? false) && (b.version?.isNotEmpty ?? false)).toList();
     } finally {
       await appDb.close();
@@ -74,7 +77,10 @@ class OfflineBoundaryProvider implements BoundarySummaryProvider {
       final repository = BoundaryRepository(appDb.db);
       final raw = await rootBundle.loadString(assetPath);
       final approved = parseBoundariesFromGeoJson(raw).where((b) => !b.isDemo && (b.source?.isNotEmpty ?? false) && (b.version?.isNotEmpty ?? false)).toList();
-      if (approved.isNotEmpty) await repository.insertBoundaries(approved);
+      if (approved.isNotEmpty) {
+        await repository.insertBoundaries(approved);
+        return approved;
+      }
       return (await repository.getAllBoundaries()).where((b) => !b.isDemo && (b.source?.isNotEmpty ?? false) && (b.version?.isNotEmpty ?? false)).toList();
     } finally {
       await appDb.close();

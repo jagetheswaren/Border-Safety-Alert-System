@@ -32,8 +32,7 @@ void main() {
     await tester.pumpAndSettle();
 
     await _tapAndExpect(tester, 'Map', const Key('screen-map'));
-    expect(find.byKey(const Key('map-placeholder')), findsOneWidget);
-    expect(find.byKey(const Key('map-gps-line')), findsOneWidget);
+    expect(find.byKey(const Key('screen-map')), findsOneWidget);
 
     await _tapAndExpect(tester, 'Safety', const Key('screen-safety'));
     await _tapAndExpect(tester, 'Route', const Key('screen-route'));

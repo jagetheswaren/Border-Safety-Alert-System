@@ -4,8 +4,9 @@ from sqlalchemy import or_
 from typing import List, Optional
 from app.dependencies import get_db
 from app.models.incident import Incident
-from app.schemas.incident import IncidentInDB, IncidentCreate
+from app.schemas.incident import IncidentInDB, IncidentCreate, IncidentUpdate
 from app.schemas.pagination import PaginatedResponse
+from datetime import datetime, timezone
 
 from app.api.auth import require_operator
 
@@ -58,8 +59,30 @@ def get_incident(incident_id: str, db: Session = Depends(get_db)):
 
 @router.post("/", response_model=IncidentInDB)
 def create_incident(incident: IncidentCreate, db: Session = Depends(get_db)):
-    db_incident = Incident(**incident.model_dump())
+    data = incident.model_dump()
+    if not data.get("incident_number"):
+        import uuid
+        data["incident_number"] = f"INC-{datetime.now(timezone.utc).year}-{uuid.uuid4().hex[:6].upper()}"
+    db_incident = Incident(**data)
     db.add(db_incident)
+    db.commit()
+    db.refresh(db_incident)
+    return db_incident
+
+@router.patch("/{incident_id}", response_model=IncidentInDB)
+def update_incident(incident_id: str, update: IncidentUpdate, db: Session = Depends(get_db)):
+    db_incident = db.query(Incident).filter(Incident.id == incident_id).first()
+    if not db_incident:
+        raise HTTPException(status_code=404, detail="Incident not found")
+    
+    update_data = update.model_dump(exclude_unset=True)
+    for field, val in update_data.items():
+        setattr(db_incident, field, val)
+    
+    if update.status == "RESOLVED" and not db_incident.resolved_at:
+        db_incident.resolved_at = datetime.now(timezone.utc)
+    db_incident.updated_at = datetime.now(timezone.utc)
+
     db.commit()
     db.refresh(db_incident)
     return db_incident
