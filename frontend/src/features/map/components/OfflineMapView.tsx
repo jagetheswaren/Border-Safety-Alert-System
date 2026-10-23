@@ -55,10 +55,11 @@ export function OfflineMapView({
           'osm-tiles': {
             type: 'raster',
             tiles: [
-              'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
+              'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
+              'https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png'
             ],
             tileSize: 256,
-            attribution: '&copy; OpenStreetMap contributors | BSAS Offline Fallback',
+            attribution: '&copy; Esri, TomTom, Garmin, FAO, NOAA, USGS | BSAS Map Engine',
           },
         },
         layers: [

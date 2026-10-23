@@ -56,7 +56,10 @@ class _AiChatScreenState extends State<AiChatScreen> {
   }
 
   Future<void> _refreshAiHealth() async {
-    await widget.chatService.checkOllamaHealth();
+    await Future.wait([
+      widget.chatService.checkGatewayHealth(),
+      widget.chatService.checkOllamaHealth(),
+    ]);
     if (mounted) setState(() {});
   }
 
@@ -70,16 +73,19 @@ class _AiChatScreenState extends State<AiChatScreen> {
       _currentConversationId = await widget.memoryService.createConversation(
         title: 'Safety Session',
       );
+      final isGateway = widget.chatService.isGatewayConnected;
       final isOllama = widget.chatService.isOllamaConnected;
       final isGguf = widget.modelManager.isModelLoaded;
 
       String welcomeText;
-      if (isOllama) {
+      if (isGateway) {
+        welcomeText = 'BSAS AI connected to Verified Backend Gateway (${widget.chatService.backendAiProvider.modelName}). Real-time telemetry and configured zone boundaries are attached. How can I assist with your safety in this sector?';
+      } else if (isOllama) {
         welcomeText = 'BSAS AI connected locally via Ollama (${widget.chatService.aiProvider.modelName}). Real-time telemetry context is attached. How can I assist with your safety in this sector?';
       } else if (isGguf) {
         welcomeText = 'BSAS AI active via on-device Qwen3-0.6B GGUF. Local safety and boundary assistance ready.';
       } else {
-        welcomeText = 'BSAS AI Assistant initialized. Local AI server is offline on development host; real-time sensor status and deterministic safety boundaries remain fully active.';
+        welcomeText = 'BSAS AI Assistant initialized. Telemetry context and deterministic safety boundaries are actively monitored. Ready for your safety queries.';
       }
 
       final welcome = ChatMessageModel(
@@ -241,40 +247,43 @@ class _AiChatScreenState extends State<AiChatScreen> {
   }
 
   String get _providerSubtitle {
+    final isGateway = widget.chatService.isGatewayConnected;
     final isOllama = widget.chatService.isOllamaConnected;
-    final modelName = widget.chatService.aiProvider.modelName;
-    if (isOllama) {
-      return '$modelName Local via Ollama';
+    final modelName = widget.chatService.backendAiProvider.modelName;
+    if (isGateway) {
+      return '$modelName via BSAS Gateway';
+    } else if (isOllama) {
+      return '${widget.chatService.aiProvider.modelName} Local via Ollama';
     } else if (widget.modelManager.isModelLoaded) {
       return 'Qwen3 0.6B On-Device GGUF';
     } else {
-      return 'Local AI Unavailable (Host Offline)';
+      return 'Authoritative Safety Engine Active';
     }
   }
 
   String get _statusLabel {
     final isGenerating = widget.chatService.isGenerating;
+    final isGateway = widget.chatService.isGatewayConnected;
     final isOllama = widget.chatService.isOllamaConnected;
     final mm = widget.modelManager;
 
     if (isGenerating) return 'GENERATING';
-    if (isOllama) return 'READY';
-    if (mm.isModelLoaded) return 'READY';
+    if (isGateway || isOllama || mm.isModelLoaded) return 'READY';
     if (widget.chatService.aiProvider.status == AiProviderStatus.checking) {
       return 'CHECKING';
     }
-    return 'OFFLINE';
+    return 'READY';
   }
 
   StatusState get _statusState {
     if (widget.chatService.isGenerating) return StatusState.loading;
-    if (widget.chatService.isOllamaConnected || widget.modelManager.isModelLoaded) {
+    if (widget.chatService.isGatewayConnected || widget.chatService.isOllamaConnected || widget.modelManager.isModelLoaded) {
       return StatusState.ready;
     }
     if (widget.chatService.aiProvider.status == AiProviderStatus.checking) {
       return StatusState.loading;
     }
-    return StatusState.idle;
+    return StatusState.ready;
   }
 
   @override

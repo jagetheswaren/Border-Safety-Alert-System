@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'ai_provider.dart';
+import 'backend_ai_provider.dart';
 import 'model_manager.dart';
 import 'native_gguf_runtime.dart';
 import 'ollama_ai_provider.dart';
@@ -52,12 +53,14 @@ class SafetyContextSnapshot {
 enum ChatBackendMode {
   auto,
   ollama,
+  backendGateway,
   onDeviceGguf,
 }
 
-/// Service handling local AI interactions for BSAS.
+/// Service handling AI interactions for BSAS.
 ///
 /// Architecture:
+/// - Online Gateway Mode: Authenticated FastAPI AI Gateway (/api/v1/ai/chat) with Gemini / OpenAI / DB Grounding.
 /// - Development mode (Laptop/LAN): Real Ollama neural streaming over localhost:11434.
 /// - Production mode (Android): Native on-device Qwen3-0.6B GGUF inference via llama.cpp.
 /// - Absolute Rule: NO fake keyword engine, NO canned responses, NO simulated delays.
@@ -67,10 +70,12 @@ class LocalChatService extends ChangeNotifier {
     required this.modelManager,
     NativeGgufRuntime? nativeRuntime,
     AiProvider? aiProvider,
+    BackendAiProvider? backendAiProvider,
     this.ollamaBaseUrl = 'http://127.0.0.1:11434',
     this.ollamaModel = 'qwen3:0.6b',
     this.backendMode = ChatBackendMode.auto,
   })  : nativeRuntime = nativeRuntime ?? NativeGgufRuntime(),
+        backendAiProvider = backendAiProvider ?? BackendAiProvider(),
         aiProvider = aiProvider ??
             OllamaAiProvider(
               baseUrl: ollamaBaseUrl,
@@ -80,6 +85,7 @@ class LocalChatService extends ChangeNotifier {
   final ModelManager modelManager;
   final NativeGgufRuntime nativeRuntime;
   final AiProvider aiProvider;
+  final BackendAiProvider backendAiProvider;
   final String ollamaBaseUrl;
   final String ollamaModel;
   ChatBackendMode backendMode;
@@ -87,9 +93,11 @@ class LocalChatService extends ChangeNotifier {
   bool _isGenerating = false;
   Completer<void>? _cancelCompleter;
   bool _isOllamaConnected = false;
+  bool _isGatewayConnected = false;
 
   bool get isGenerating => _isGenerating;
   bool get isOllamaConnected => _isOllamaConnected;
+  bool get isGatewayConnected => _isGatewayConnected;
   String get activeBaseUrl => (aiProvider is OllamaAiProvider) ? (aiProvider as OllamaAiProvider).baseUrl : ollamaBaseUrl;
 
   void updateOllamaBaseUrl(String newUrl) {
@@ -97,6 +105,17 @@ class LocalChatService extends ChangeNotifier {
       (aiProvider as OllamaAiProvider).updateBaseUrl(newUrl);
     }
     unawaited(checkOllamaHealth());
+  }
+
+  Future<bool> checkGatewayHealth() async {
+    try {
+      final status = await backendAiProvider.checkHealth();
+      _isGatewayConnected = status == AiProviderStatus.ready;
+    } catch (_) {
+      _isGatewayConnected = false;
+    }
+    notifyListeners();
+    return _isGatewayConnected;
   }
 
   Future<bool> checkOllamaHealth() async {
@@ -112,6 +131,7 @@ class LocalChatService extends ChangeNotifier {
 
   void cancelGeneration() {
     aiProvider.cancel();
+    backendAiProvider.cancel();
     if (_isGenerating && _cancelCompleter != null && !_cancelCompleter!.isCompleted) {
       _cancelCompleter!.complete();
     }
@@ -134,7 +154,31 @@ class LocalChatService extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // 1. Laptop Development Path: check for active Ollama server
+      // 1. FastAPI AI Gateway Path (Backend Online Mode)
+      bool tryGateway = backendMode == ChatBackendMode.backendGateway || backendMode == ChatBackendMode.auto;
+      if (tryGateway) {
+        final gatewayAvailable = await checkGatewayHealth();
+        if (gatewayAvailable) {
+          bool streamedAny = false;
+          try {
+            await for (final token in backendAiProvider.generateChatStream(
+              messages: [
+                {'role': 'user', 'content': userPrompt}
+              ],
+              safetyContext: contextSnapshot,
+            )) {
+              if (_cancelCompleter != null && _cancelCompleter!.isCompleted) break;
+              streamedAny = true;
+              yield token;
+            }
+          } catch (_) {
+            streamedAny = false;
+          }
+          if (streamedAny) return;
+        }
+      }
+
+      // 2. Laptop Development Path: check for active Ollama server
       bool tryOllama = backendMode == ChatBackendMode.ollama || backendMode == ChatBackendMode.auto;
       if (tryOllama) {
         final available = await checkOllamaHealth();

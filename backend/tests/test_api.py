@@ -243,3 +243,59 @@ def test_alert_crud_and_patch(client):
     patched = patch_res.json()
     assert patched["acknowledged_at"] is not None
     assert patched["resolved_at"] is not None
+
+def test_ai_chat_endpoint(client, anonymous):
+    # 1. Unauthorized request is rejected
+    unauth_res = anonymous.post(
+        "/api/v1/ai/chat",
+        json={"message": "What is the current configured safety zone?"}
+    )
+    assert unauth_res.status_code == 401
+
+    # 2. Authenticate user
+    unique_email = f"ai_operator_{uuid.uuid4().hex[:6]}@bsas.org"
+    password = "SecurePassword123!"
+    client.post("/api/v1/users/", json={"email": unique_email, "password": password, "role": "OPERATOR"})
+    login_res = client.post("/api/v1/auth/login", data={"username": unique_email, "password": password})
+    token = login_res.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # 3. Create a test zone to verify read-only grounding
+    zone_res = client.post(
+        "/api/v1/zones/",
+        json={
+            "name": "Palk Bay Sector Alpha",
+            "type": "RESTRICTED",
+            "severity": "CRITICAL",
+            "warning_radius_m": 500.0,
+            "geometry": '{"type": "Polygon", "coordinates": [[[79.1, 9.1], [79.2, 9.1], [79.2, 9.2], [79.1, 9.2], [79.1, 9.1]]]}'
+        },
+        headers=headers
+    )
+    assert zone_res.status_code == 201
+
+    # 4. Authenticated chat query about configured zones
+    chat_res = client.post(
+        "/api/v1/ai/chat",
+        json={
+            "message": "What is the current configured safety zone?",
+            "conversation_id": "test-session-1",
+            "telemetry": {
+                "latitude": 9.15,
+                "longitude": 79.15,
+                "risk_state": "WARNING",
+                "zone_state": "APPROACHING"
+            }
+        },
+        headers=headers
+    )
+    assert chat_res.status_code == 200
+    data = chat_res.json()
+    assert data["success"] is True
+    assert data["source"] == "ai"
+    assert "reply" in data
+    assert "provider" in data
+    assert len(data["reply"]) > 10
+    # Grounding check: should reflect the configured zone
+    assert "Palk Bay Sector Alpha" in data["reply"] or "safety zone" in data["reply"].lower()
+

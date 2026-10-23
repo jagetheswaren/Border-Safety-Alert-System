@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 
-from app.api import users, zones, incidents, auth, alerts, dashboard, events, geofence, sync, borders, locations
+from app.api import users, zones, incidents, auth, alerts, dashboard, events, geofence, sync, borders, locations, ai
 from app.database import engine, init_db, get_db, is_postgres
 from app.config import settings
 
@@ -44,6 +44,7 @@ app.include_router(dashboard.router, prefix="/api/v1/dashboard", tags=["dashboar
 app.include_router(events.router, prefix="/api/v1/events", tags=["events"])
 app.include_router(geofence.router, prefix="/api/v1/geofence", tags=["geofence"])
 app.include_router(sync.router, prefix="/api/v1/sync", tags=["sync"])
+app.include_router(ai.router, prefix="/api/v1/ai", tags=["ai"])
 
 # Route aliases without /api/v1 for standard REST client compatibility
 app.include_router(borders.router, prefix="/borders", tags=["borders-alias"], include_in_schema=False)
