@@ -8,6 +8,8 @@ import '../core/widgets/bsas_logo.dart';
 import '../core/widgets/status_badge.dart';
 import '../models/gps_snapshot.dart';
 import '../models/geofence_result.dart';
+import '../models/geofence_state.dart';
+import '../models/location_model.dart';
 import '../services/ai_provider.dart';
 import '../services/chat_memory_service.dart';
 import '../services/local_chat_service.dart';
@@ -45,6 +47,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
   String _streamingContent = '';
   String? _lastError;
   String? _lastUserPrompt;
+  bool _showPreviousSessionNotice = false;
   StreamSubscription<String>? _streamSub;
 
   @override
@@ -65,14 +68,19 @@ class _AiChatScreenState extends State<AiChatScreen> {
 
   Future<void> _initConversation() async {
     await widget.memoryService.initialize();
+    if (!mounted) return;
     if (widget.memoryService.conversations.isNotEmpty) {
       _currentConversationId = widget.memoryService.conversations.first.id;
       final saved = widget.memoryService.getMessages(_currentConversationId);
-      setState(() => _activeMessages.addAll(saved));
+      setState(() {
+        _activeMessages.addAll(saved);
+        _showPreviousSessionNotice = saved.isNotEmpty;
+      });
     } else {
       _currentConversationId = await widget.memoryService.createConversation(
         title: 'Safety Session',
       );
+      if (!mounted) return;
       final isGateway = widget.chatService.isGatewayConnected;
       final isOllama = widget.chatService.isOllamaConnected;
       final isGguf = widget.modelManager.isModelLoaded;
@@ -85,7 +93,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
       } else if (isGguf) {
         welcomeText = 'BSAS AI active via on-device Qwen3-0.6B GGUF. Local safety and boundary assistance ready.';
       } else {
-        welcomeText = 'BSAS AI Assistant initialized. Telemetry context and deterministic safety boundaries are actively monitored. Ready for your safety queries.';
+        welcomeText = '🛡️ BSAS Field Safety AI Copilot is online and monitoring your live GPS coordinates.\n\nYou can ask:\n• "Am I safe or not?"\n• "Where am I right now?"\n• "Nearest boundary distance?"\n• "Emergency SOS assistance"\n• அல்லது தமிழில்: "நான் பாதுகாப்பா இருக்கேனா?"';
       }
 
       final welcome = ChatMessageModel(
@@ -96,23 +104,40 @@ class _AiChatScreenState extends State<AiChatScreen> {
         timestamp: DateTime.now(),
       );
       await widget.memoryService.addMessage(welcome);
+      if (!mounted) return;
       setState(() => _activeMessages.add(welcome));
     }
   }
 
   SafetyContextSnapshot _buildSnapshot() {
     final fix = widget.gps?.location;
+    final geo = widget.geoFence;
+    final nearest = geo?.nearestBoundary;
+    final dist = geo?.distanceToBoundaryMeters;
+    final state = geo?.state;
+
     return SafetyContextSnapshot(
-      gpsAvailable: fix != null,
+      gpsAvailable: fix != null &&
+          LocationModel.isValidLatitude(fix.latitude) &&
+          LocationModel.isValidLongitude(fix.longitude),
       latitude: fix?.latitude,
       longitude: fix?.longitude,
       accuracyM: fix?.accuracy,
       speedMps: fix?.speed,
       bearingDeg: fix?.bearing,
-      zoneState: widget.geoFence?.state.name.toUpperCase() ?? 'SAFE',
-      riskState: widget.geoFence?.state.name.toUpperCase() ?? 'SAFE',
-      activeAlertCount: 0,
+      zoneState: state?.name.toUpperCase() ?? 'UNKNOWN',
+      riskState: (state == GeoFenceState.safe)
+          ? 'SAFE'
+          : (geo?.boundaryRisk?.name.toUpperCase() ??
+              state?.name.toUpperCase() ??
+              'UNKNOWN'),
+      activeAlertCount: (state == GeoFenceState.critical ||
+              state == GeoFenceState.insideRestrictedArea)
+          ? 1
+          : 0,
       isOffline: true,
+      nearestBoundaryName: nearest?.name,
+      distanceToBoundaryM: dist,
     );
   }
 
@@ -257,7 +282,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
     } else if (widget.modelManager.isModelLoaded) {
       return 'Qwen3 0.6B On-Device GGUF';
     } else {
-      return 'Authoritative Safety Engine Active';
+      return 'BSAS Safety Copilot (Autonomous On-Device)';
     }
   }
 
@@ -268,22 +293,22 @@ class _AiChatScreenState extends State<AiChatScreen> {
     final mm = widget.modelManager;
 
     if (isGenerating) return 'GENERATING';
-    if (isGateway || isOllama || mm.isModelLoaded) return 'READY';
+    if ((isGateway && widget.chatService.backendAiProvider.status == AiProviderStatus.ready) || isOllama || (mm.isModelLoaded && widget.chatService.nativeRuntime.isAvailable)) return 'ONLINE';
     if (widget.chatService.aiProvider.status == AiProviderStatus.checking) {
       return 'CHECKING';
     }
-    return 'READY';
+    return 'OFFLINE';
   }
 
   StatusState get _statusState {
     if (widget.chatService.isGenerating) return StatusState.loading;
-    if (widget.chatService.isGatewayConnected || widget.chatService.isOllamaConnected || widget.modelManager.isModelLoaded) {
+    if ((widget.chatService.isGatewayConnected && widget.chatService.backendAiProvider.status == AiProviderStatus.ready) || widget.chatService.isOllamaConnected || (widget.modelManager.isModelLoaded && widget.chatService.nativeRuntime.isAvailable)) {
       return StatusState.ready;
     }
     if (widget.chatService.aiProvider.status == AiProviderStatus.checking) {
       return StatusState.loading;
     }
-    return StatusState.ready;
+    return StatusState.idle;
   }
 
   @override
@@ -322,6 +347,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
                           children: [
                             Text(
                               'BSAS AI',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                               style: BsasTypography.heading.copyWith(
                                 color: BsasColors.text(isDark),
                                 fontSize: 16,
@@ -331,6 +358,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
                             const SizedBox(height: 2),
                             Text(
                               _providerSubtitle,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                               style: BsasTypography.caption.copyWith(
                                 color: BsasColors.radarCyan,
                                 fontSize: 11,
@@ -339,7 +368,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
                           ],
                         ),
                       ),
-                      StatusBadge(
+                      if (MediaQuery.sizeOf(context).width >= 420) StatusBadge(
                         label: _statusLabel,
                         state: _statusState,
                         isPulsing: isGenerating,
@@ -370,6 +399,11 @@ class _AiChatScreenState extends State<AiChatScreen> {
                       ),
                     ],
                   ),
+                  if (MediaQuery.sizeOf(context).width < 420)
+                    Align(alignment: Alignment.centerLeft, child: Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: StatusBadge(label: _statusLabel, state: _statusState, isPulsing: isGenerating),
+                    )),
                   const SizedBox(height: BsasSpacing.sm),
                   _buildSafetyContextPill(isDark),
                 ],
@@ -377,6 +411,21 @@ class _AiChatScreenState extends State<AiChatScreen> {
             ),
 
             // Messages List
+            if (_showPreviousSessionNotice)
+              Container(
+                width: double.infinity,
+                margin: const EdgeInsets.fromLTRB(BsasSpacing.lg, BsasSpacing.sm, BsasSpacing.lg, 0),
+                padding: const EdgeInsets.all(BsasSpacing.sm),
+                decoration: BoxDecoration(
+                  color: BsasColors.warningOrange.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: BsasColors.warningOrange.withValues(alpha: 0.35)),
+                ),
+                child: const Text(
+                  'Saved chat from an earlier session. Location answers reflect the time shown on each message.',
+                  style: TextStyle(fontSize: 12, height: 1.35),
+                ),
+              ),
             Expanded(
               child: ListView.builder(
                 controller: _scrollController,
@@ -649,10 +698,11 @@ class _AiChatScreenState extends State<AiChatScreen> {
 
   Widget _buildPromptSuggestions(bool isDark) {
     final suggestions = [
+      'Am I safe or not?',
       'Where am I right now?',
-      'Explain my safety risk',
-      'Nearest safe boundary distance?',
-      'Evacuation protocol',
+      'Nearest boundary distance?',
+      'Emergency SOS assistance',
+      'நான் பாதுகாப்பா இருக்கேனா?',
     ];
 
     return Container(

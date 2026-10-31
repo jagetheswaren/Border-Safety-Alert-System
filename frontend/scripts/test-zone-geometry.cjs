@@ -1,0 +1,17 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const ts = require('typescript');
+const vm = require('node:vm');
+const source = fs.readFileSync(path.join(__dirname, '../src/features/map/services/zoneGeometry.ts'), 'utf8');
+const moduleValue = { exports: {} };
+vm.runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, { exports: moduleValue.exports, module: moduleValue });
+const { parseZoneGeometry } = moduleValue.exports;
+const wkt = 'POLYGON((79.25 9.25,79.25 9.35,79.40 9.35,79.40 9.25,79.25 9.25))';
+assert.equal(parseZoneGeometry(wkt).coordinates[0][0][0], 79.25);
+assert.equal(parseZoneGeometry(wkt).coordinates[0][0][1], 9.25);
+const json = { type: 'Polygon', coordinates: [[[0,0],[1,0],[1,1],[0,0]]] };
+assert.equal(JSON.stringify(parseZoneGeometry(JSON.stringify(json))), JSON.stringify(json));
+assert.equal(parseZoneGeometry('POLYGON((0 0,2 0,2 2,0 0),(0.5 0.5,1 0.5,1 1,0.5 0.5))').coordinates.length, 2);
+for (const invalid of ['POLYGON((1 1,2 2,3 3))', '{broken', 'POLYGON((181 1,2 2,3 3,181 1))', 'POLYGON((NaN 1,2 2,3 3,NaN 1))', '{"type":"Polygon","coordinates":[]}', '{"type":"LineString","coordinates":[]}']) assert.throws(() => parseZoneGeometry(invalid));
+console.log('PASS: legacy WKT coordinate order, GeoJSON, zero coordinates, holes and six malformed geometry cases');

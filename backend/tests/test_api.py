@@ -244,7 +244,14 @@ def test_alert_crud_and_patch(client):
     assert patched["acknowledged_at"] is not None
     assert patched["resolved_at"] is not None
 
-def test_ai_chat_endpoint(client, anonymous):
+def test_ai_chat_endpoint(client, anonymous, monkeypatch):
+    from app.api import ai
+    async def no_remote(*args, **kwargs):
+        return None
+    monkeypatch.setattr(ai, '_call_gemini_api', no_remote)
+    monkeypatch.setattr(ai, '_call_openai_api', no_remote)
+    monkeypatch.setattr(ai, '_call_local_api', no_remote)
+    monkeypatch.setattr(ai, '_call_ollama_api', no_remote)
     # 1. Unauthorized request is rejected
     unauth_res = anonymous.post(
         "/api/v1/ai/chat",
@@ -291,8 +298,9 @@ def test_ai_chat_endpoint(client, anonymous):
     )
     assert chat_res.status_code == 200
     data = chat_res.json()
-    assert data["success"] is True
-    assert data["source"] == "ai"
+    assert data["success"] is False
+    assert data["source"] == "database"
+    assert data["provider"] == "bsas-safety-engine"
     assert "reply" in data
     assert "provider" in data
     assert len(data["reply"]) > 10

@@ -87,3 +87,7 @@ windows/flutter/ephemeral/
 scratch/
 .pytest_cache/
 offline_tiles/
+.playwright-cli/
+output/
+*.zip
+*.png

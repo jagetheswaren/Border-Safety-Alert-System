@@ -20,18 +20,21 @@ import { PlaceSearch } from './PlaceSearch';
 import { RoutePlanner } from './RoutePlanner';
 import { StreetViewPanel } from './StreetViewPanel';
 import { BorderMetadataPanel } from './BorderMetadataPanel';
+import { LocationSafetyPanel } from './LocationSafetyPanel';
 import { MapLegend } from './MapLegend';
-import { AlertCircle, KeyRound } from 'lucide-react';
 
 interface BSASMapProps {
   initialCenter?: LatLngLiteral;
   initialZoom?: number;
+  refreshRevision?: number;
 }
 
 export function BSASMap({
   initialCenter = { lat: 10.35, lng: 78.25 },
+  refreshRevision = 0,
 }: BSASMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const [followLocation, setFollowLocation] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isRouteOpen, setIsRouteOpen] = useState(false);
@@ -49,9 +52,11 @@ export function BSASMap({
   const {
     coords: userCoords,
     accuracy: userAccuracy,
+    timestamp: locationTimestamp,
     isLoading: isLocating,
     error: locationError,
-    permissionDenied,
+    tracking,
+    stopTracking,
     requestLocation,
   } = useCurrentLocation(false);
 
@@ -61,12 +66,14 @@ export function BSASMap({
     selectedBorder,
     setSelectedBorder,
     refreshBorders,
+    error: bordersError,
   } = useBorders(userCoords);
 
   const {
     incidents,
     devices,
     refreshIncidents,
+    error: incidentsError,
   } = useIncidents(30000);
 
   const {
@@ -96,6 +103,14 @@ export function BSASMap({
     setMapType,
   } = useMapLayers();
 
+  useEffect(() => {
+    let active = true;
+    if (refreshRevision > 0) queueMicrotask(() => {
+      if (active) { void refreshBorders(); void refreshIncidents(); }
+    });
+    return () => { active = false; };
+  }, [refreshRevision, refreshBorders, refreshIncidents]);
+
   // Fullscreen change listener
   useEffect(() => {
     const handleFullscreenChange = () => {
@@ -120,6 +135,7 @@ export function BSASMap({
 
   // Locate User Button Handler
   const handleLocateUser = () => {
+    setFollowLocation(true);
     requestLocation();
     if (userCoords) {
       setCenterTarget(userCoords);
@@ -127,8 +143,11 @@ export function BSASMap({
     }
   };
 
+
+
   // Place search selection handler
   const handlePlaceSelect = (place: PlaceResult) => {
+    setFollowLocation(false);
     setSelectedPlace(place);
     setCenterTarget(place.location);
     setStreetViewPosition(place.location);
@@ -171,9 +190,9 @@ export function BSASMap({
     checkConnectivity();
   };
 
-  // Effective provider: if key is not configured, always fallback to offline MapLibre
+  // Effective provider: if key is not configured, use the key-free Leaflet map
   const effectiveProvider = isKeyConfigured ? activeProvider : 'offline';
-  const effectiveCenter = centerTarget || userCoords || initialCenter;
+  const effectiveCenter = followLocation && userCoords ? userCoords : centerTarget || initialCenter;
   const effectiveStreetViewPos = streetViewPosition || userCoords || initialCenter;
 
   return (
@@ -209,31 +228,8 @@ export function BSASMap({
         </div>
       )}
 
-      {/* Missing Google Maps API Key Notice Banner */}
-      {!isKeyConfigured && (
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 max-w-xl w-11/12 bg-amber-950/90 border border-amber-700/80 text-amber-200 px-4 py-2 rounded-xl shadow-2xl backdrop-blur-md flex items-center justify-between space-x-3 text-xs">
-          <div className="flex items-center space-x-2">
-            <KeyRound className="w-4 h-4 text-amber-400 shrink-0" />
-            <div>
-              <span className="font-semibold text-amber-300">Google Maps Platform Unconfigured:</span>{' '}
-              Add <code className="bg-amber-900/60 px-1 py-0.5 rounded text-[11px] font-mono">NEXT_PUBLIC_GOOGLE_MAPS_API_KEY</code> to enable online basemaps, search, & routes. Running in <span className="font-semibold text-white">Offline MapLibre Fallback Mode</span>.
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Location Permission / Error Alert */}
-      {(locationError || permissionDenied) && (
-        <div className="absolute top-18 right-6 z-20 max-w-sm bg-red-950/90 border border-red-800 text-red-200 px-3 py-2 rounded-xl shadow-2xl backdrop-blur-md flex items-center space-x-2 text-xs">
-          <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
-          <span>
-            {permissionDenied
-              ? 'Location permission denied. Enable browser location services to view your position.'
-              : locationError}
-          </span>
-        </div>
-      )}
-
+      <LocationSafetyPanel coords={userCoords} timestamp={locationTimestamp} accuracy={userAccuracy} zones={safetyZones} tracking={tracking} error={locationError} isLocating={isLocating} requestLocation={handleLocateUser} stopTracking={stopTracking} />
+      {(bordersError || incidentsError) && <div role="alert" className="absolute top-28 left-3 z-30 max-w-sm rounded-xl bg-rose-950 p-3 text-xs text-rose-200">Map data unavailable or outdated: {bordersError || incidentsError}<button className="ml-2 underline" onClick={handleRefreshData}>Retry data</button></div>}
       {/* Active Map Engine */}
       {effectiveProvider === 'google' ? (
         <GoogleMapView
@@ -256,12 +252,14 @@ export function BSASMap({
         />
       ) : (
         <OfflineMapView
+          mapType={mapType}
           layers={layers}
           borders={borders}
           safetyZones={safetyZones}
           incidents={incidents}
           devices={devices}
           userLocation={userCoords}
+          userAccuracy={userAccuracy}
           selectedBorder={selectedBorder}
           onSelectBorder={handleSelectBorder}
           centerTarget={effectiveCenter}

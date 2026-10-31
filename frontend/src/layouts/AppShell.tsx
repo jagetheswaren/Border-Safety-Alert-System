@@ -17,10 +17,15 @@ interface AppShellProps {
 
 export const AppShell: React.FC<AppShellProps> = ({ children }) => {
   const router = useRouter();
-  const { data: user, error, loading } = useResource(getMe);
+  const { data: user, error, loading, refresh } = useResource(getMe);
   const [collapsed, setCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+
+  useEffect(() => {
+    window.addEventListener('online', refresh);
+    return () => window.removeEventListener('online', refresh);
+  }, [refresh]);
 
   // Global hotkey Ctrl+K / Cmd+K
   useEffect(() => {
@@ -54,7 +59,13 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
   }
 
   if (error || !user || !isOperator(user)) {
-    return <LoadingState variant="fullscreen" label="Redirecting to BSAS Authentication..." />;
+    return <div className="m-auto max-w-md rounded-xl border border-slate-700 bg-slate-900 p-6 text-slate-200">
+      <h1 className="text-lg font-semibold">BSAS connection unavailable</h1>
+      <p role="alert" className="my-3">{error?.message || 'Please sign in with an active operator account.'}</p>
+      <p className="mb-4 text-sm text-slate-400">No current safety status can be confirmed until the connection is restored.</p>
+      <button onClick={refresh} className="mr-4 rounded bg-sky-800 px-4 py-2">Retry connection</button>
+      <button onClick={() => router.replace('/login')} className="underline">Sign in</button>
+    </div>;
   }
 
   return (

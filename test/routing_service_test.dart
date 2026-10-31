@@ -15,14 +15,25 @@ void main() {
     });
 
     // 6. UNKNOWN / MISSING DATA TEST
-    test('missing data returns alreadySafe or unavailable depending on boundaries', () async {
-      final loc = LocationModel.validated(latitude: 10, longitude: 10);
+    test('missing boundaries return unknown instead of claiming safety', () async {
+      final loc = LocationModel.validated(accuracy: 8, latitude: 10, longitude: 10);
       final result = await routingService.calculateSafeRoute(loc, []);
-      expect(result.status, RoutingStatus.alreadySafe);
+      expect(result.status, RoutingStatus.unknown);
     });
 
-    test('alreadySafe when location is outside boundary and clearance', () async {
-      final loc = LocationModel.validated(latitude: 0, longitude: 0);
+    test('stale or inaccurate GPS never produces a safe route', () async {
+      final positions = [
+        LocationModel.validated(latitude:0,longitude:0,accuracy:8,timestamp:DateTime.now().subtract(const Duration(minutes:2))),
+        LocationModel.validated(latitude:0,longitude:0,accuracy:201),
+        LocationModel.validated(latitude:0,longitude:0),
+      ];
+      for (final position in positions) {
+        expect((await routingService.calculateSafeRoute(position, [])).status,RoutingStatus.unknown);
+      }
+    });
+
+    test('alreadySafe when location is outside boundary and clearance' , () async {
+      final loc = LocationModel.validated(accuracy: 8, latitude: 0, longitude: 0);
       final boundary = BoundaryModel(
         id: '1',
         name: 'test',
@@ -58,7 +69,7 @@ void main() {
         ],
       );
 
-      final loc = LocationModel.validated(latitude: 0, longitude: 0);
+      final loc = LocationModel.validated(accuracy: 8, latitude: 0, longitude: 0);
       final result = await routingService.calculateSafeRoute(loc, [boundary]);
       
       expect(result.status, RoutingStatus.available, reason: result.message);
@@ -84,7 +95,7 @@ void main() {
         ],
       );
 
-      final loc = LocationModel.validated(latitude: 0, longitude: 0);
+      final loc = LocationModel.validated(accuracy: 8, latitude: 0, longitude: 0);
       final result = await routingService.calculateSafeRoute(loc, [boundary]);
       
       expect(result.status, RoutingStatus.unavailable);
@@ -141,7 +152,7 @@ void main() {
         ],
       );
 
-      final loc = LocationModel.validated(latitude: 0, longitude: 0);
+      final loc = LocationModel.validated(accuracy: 8, latitude: 0, longitude: 0);
       final boundaries = [boundaryA, boundaryB, boundaryC];
       final result = await routingService.calculateSafeRoute(loc, boundaries);
       
@@ -194,7 +205,7 @@ void main() {
           ]
         ],
       );
-      final loc = LocationModel.validated(latitude: 0, longitude: 0);
+      final loc = LocationModel.validated(accuracy: 8, latitude: 0, longitude: 0);
       
       final boundaries = [boundaryA, boundary];
       final result = await routingService.calculateSafeRoute(loc, boundaries);

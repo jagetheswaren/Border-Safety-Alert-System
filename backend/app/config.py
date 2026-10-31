@@ -3,6 +3,9 @@ import logging
 from pathlib import Path
 from typing import List
 from pydantic import BaseModel
+from dotenv import load_dotenv
+
+load_dotenv()
 
 logger = logging.getLogger("bsas.config")
 

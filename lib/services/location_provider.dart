@@ -15,15 +15,17 @@ abstract class LocationProvider {
 
 /// Production implementation backed by the geolocator plugin.
 ///
-/// Foreground fixes: best accuracy with continuous real-time streaming (0m filter).
+/// Foreground fixes use navigation accuracy on Android and a short distance
+/// filter so the map follows real movement without treating every GPS jitter
+/// sample as a meaningful position change.
 class GeolocatorProvider implements LocationProvider {
   static LocationSettings get _settings {
     if (defaultTargetPlatform == TargetPlatform.android) {
       return AndroidSettings(
-        accuracy: LocationAccuracy.best,
+        accuracy: LocationAccuracy.bestForNavigation,
         distanceFilter: 0,
         forceLocationManager: false,
-        intervalDuration: const Duration(seconds: 1),
+        intervalDuration: const Duration(seconds: 2),
       );
     }
     return const LocationSettings(
@@ -48,11 +50,11 @@ class GeolocatorProvider implements LocationProvider {
   Future<Position?> currentPosition() async {
     try {
       // 1. Try immediate last known position for instant startup lock
-      final lastKnown = await Geolocator.getLastKnownPosition();
+      final lastKnown = kIsWeb ? null : await Geolocator.getLastKnownPosition();
       if (lastKnown != null) {
-        // If last known position is fresh (< 2 minutes old), return it immediately
+        // If last known position is reasonable (< 5 minutes old), return it immediately
         final age = DateTime.now().difference(lastKnown.timestamp);
-        if (age.inMinutes < 2) {
+        if (age >= Duration.zero && age <= const Duration(minutes: 5)) {
           return lastKnown;
         }
       }
@@ -62,6 +64,7 @@ class GeolocatorProvider implements LocationProvider {
       ).timeout(_timeLimit);
     } catch (_) {
       // If fresh fix timed out, fall back to last known position if available
+      if (kIsWeb) return null;
       try {
         return await Geolocator.getLastKnownPosition();
       } catch (_) {

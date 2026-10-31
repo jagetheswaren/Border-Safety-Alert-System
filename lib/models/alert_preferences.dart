@@ -1,7 +1,7 @@
 class AlertPreferences {
   const AlertPreferences({
     this.voiceEnabled = true,
-    this.vibrationEnabled = true,
+    this.vibrationEnabled = false,
     this.notificationsEnabled = true,
     this.soundEnabled = true,
   });

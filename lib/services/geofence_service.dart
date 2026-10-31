@@ -45,19 +45,30 @@ class GeoFenceService {
     if (location == null ||
         !location.latitude.isFinite ||
         !location.longitude.isFinite ||
-        location.isStale ||
-        (location.accuracy ?? double.infinity) > 200) {
+        (location.accuracy ?? double.infinity) > 500) {
       return GeoFenceResult.gpsUnavailable();
     }
     try {
       _cachedBoundaries ??= await _loadEnabledBoundaries();
+      if (_cachedBoundaries!.isEmpty) {
+        _cachedBoundaries = await _loadEnabledBoundaries();
+      }
     } catch (_) {
       return GeoFenceResult.unknown();
     }
-    final candidates = [
+    var candidates = [
       for (final boundary in _cachedBoundaries!)
-        if (boundary.enabled && _hasUsablePolygon(boundary.polygon)) boundary,
+        if (boundary.isAlertEligible && _hasUsablePolygon(boundary.polygon)) boundary,
     ];
+    if (candidates.isEmpty) {
+      try {
+        _cachedBoundaries = await _loadEnabledBoundaries();
+        candidates = [
+          for (final boundary in _cachedBoundaries!)
+            if (boundary.isAlertEligible && _hasUsablePolygon(boundary.polygon)) boundary,
+        ];
+      } catch (_) {}
+    }
     if (candidates.isEmpty) return GeoFenceResult.unknown();
 
     BoundaryModel? nearest;

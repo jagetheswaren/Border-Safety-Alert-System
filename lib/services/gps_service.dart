@@ -17,15 +17,18 @@ import 'location_provider.dart';
 ///
 /// Phase 4 will consume [snapshot] for the SQLite/boundary layer.
 class GpsService extends ChangeNotifier {
-  GpsService({LocationProvider? provider})
-    : _provider = provider ?? GeolocatorProvider();
+  GpsService({LocationProvider? provider, DateTime Function()? now})
+    : _provider = provider ?? GeolocatorProvider(),
+      _now = now ?? DateTime.now;
 
   /// Accuracy radius above which a fix is flagged unreliable.
   static const poorAccuracyThresholdMeters = 50.0;
 
   final LocationProvider _provider;
+  final DateTime Function() _now;
   GpsSnapshot _snapshot = GpsSnapshot.initial();
   StreamSubscription<Position>? _subscription;
+  Timer? _freshnessTimer;
   bool _starting = false;
   bool _disposed = false;
 
@@ -36,9 +39,11 @@ class GpsService extends ChangeNotifier {
   /// Safe to call repeatedly (e.g. Retry button): concurrent runs are
   /// ignored and the previous stream is replaced, never duplicated.
   Future<void> start() async {
-    if (_starting) return;
+    if (_starting || _disposed) return;
     _starting = true;
     try {
+      await stop();
+      if (_disposed) return;
       _emit(GpsSnapshot.initial());
 
       late final bool serviceEnabled;
@@ -72,7 +77,22 @@ class GpsService extends ChangeNotifier {
       if (permission == null) return; // _resolvePermission already emitted.
       if (permission != LocationPermissionState.granted) return;
 
-      final current = await _provider.currentPosition();
+      Position? current;
+      try {
+        current = await _provider.currentPosition();
+      } catch (_) {
+        // A one-shot failure must not prevent continuous location recovery.
+      }
+      if (_disposed) return;
+      _freshnessTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+        final location = _snapshot.location;
+        if (location != null && location.isStaleAt(_now()) && !_snapshot.stale) {
+          _emit(_snapshot.copyWith(
+            stale: true,
+            message: () => 'Location is out of date. Waiting for a fresh GPS fix.',
+          ));
+        }
+      });
       if (current != null) {
         _applyPosition(current);
       } else {
@@ -177,7 +197,7 @@ class GpsService extends ChangeNotifier {
             ? 'Poor GPS accuracy — readings may be unreliable.'
             : null,
         poorAccuracy: poor,
-        stale: fix.isStale,
+        stale: fix.isStaleAt(_now()),
       ),
     );
   }
@@ -205,6 +225,8 @@ class GpsService extends ChangeNotifier {
 
   /// Stops updates; the last snapshot is retained for display.
   Future<void> stop() async {
+    _freshnessTimer?.cancel();
+    _freshnessTimer = null;
     await _subscription?.cancel();
     _subscription = null;
   }
@@ -218,6 +240,7 @@ class GpsService extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    _freshnessTimer?.cancel();
     unawaited(_subscription?.cancel());
     _subscription = null;
     super.dispose();

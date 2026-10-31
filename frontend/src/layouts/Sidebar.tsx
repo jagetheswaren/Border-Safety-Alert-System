@@ -5,6 +5,7 @@ import React from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
+  Bot,
   ShieldCheck,
   Shield,
   LayoutDashboard,
@@ -67,6 +68,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     {
       title: "INTELLIGENCE",
       items: [
+        { href: "/dashboard/ai", label: "AI Assistant", icon: Bot },
         { href: "/dashboard/boundaries", label: "Boundaries", icon: Shield },
         { href: "/dashboard/zones", label: "Safety Zones", icon: Layers },
         { href: "/dashboard/analytics", label: "Analytics", icon: BarChart3 },

@@ -6,7 +6,7 @@ import '../models/safety_state.dart';
 /// GeoJSON → [BoundaryModel] importer (Phase 4).
 ///
 /// Expected input: a `FeatureCollection` of `Feature` objects with `Polygon`
-/// geometry (RFC 7946 `[lon, lat]` position order) and properties
+/// or `MultiPolygon` geometry (RFC 7946 `[lon, lat]` position order) and properties
 /// `name`, `type`, `risk_level` (LOW|MEDIUM|HIGH) plus optional `country`,
 /// `description`, `source`, `version`, `updated_at`. Features may carry an
 /// explicit string `id`; otherwise a stable slug of the name is used so
@@ -67,26 +67,35 @@ BoundaryModel _parseFeature(Object? feature, int index) {
   }
 
   final geometry = feature['geometry'];
-  if (geometry is! Map<String, Object?> || geometry['type'] != 'Polygon') {
-    throw FormatException(error('geometry must be a Polygon'));
+  if (geometry is! Map<String, Object?> ||
+      !{'Polygon', 'MultiPolygon'}.contains(geometry['type'])) {
+    throw FormatException(error('geometry must be a Polygon or MultiPolygon'));
   }
   final coordinates = geometry['coordinates'];
   if (coordinates is! List || coordinates.isEmpty) {
     throw FormatException(error('Polygon has no rings'));
   }
   final rings = <List<BoundaryPosition>>[];
-  for (final ring in coordinates) {
-    if (ring is! List || ring.length < 4) {
-      throw FormatException(error('linear ring needs at least 4 positions'));
+  final polygonGroups = geometry['type'] == 'Polygon'
+      ? [coordinates]
+      : coordinates;
+  for (final polygon in polygonGroups) {
+    if (polygon is! List || polygon.isEmpty) {
+      throw FormatException(error('polygon has no rings'));
     }
-    final positions = [
-      for (final pair in ring) BoundaryPosition.fromPair(pair),
-    ];
-    if (positions.first.longitude != positions.last.longitude ||
-        positions.first.latitude != positions.last.latitude) {
-      throw FormatException(error('linear ring is not closed'));
+    for (final ring in polygon) {
+      if (ring is! List || ring.length < 4) {
+        throw FormatException(error('linear ring needs at least 4 positions'));
+      }
+      final positions = [
+        for (final pair in ring) BoundaryPosition.fromPair(pair),
+      ];
+      if (positions.first.longitude != positions.last.longitude ||
+          positions.first.latitude != positions.last.latitude) {
+        throw FormatException(error('linear ring is not closed'));
+      }
+      rings.add(positions);
     }
-    rings.add(positions);
   }
 
   final rawId = properties['id'];

@@ -58,6 +58,7 @@ export interface SafetyZoneFeature {
   warning_radius_m: number;
   description?: string;
   coordinates: [number, number][]; // [lat, lng] array
+  rings?: [number, number][][];
 }
 
 export interface PlaceResult {

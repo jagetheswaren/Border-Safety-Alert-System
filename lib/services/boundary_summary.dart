@@ -1,4 +1,5 @@
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
 
@@ -30,28 +31,31 @@ abstract class BoundarySummaryProvider {
   Future<List<BoundaryModel>> loadEnabledBoundaries() async => const [];
 }
 
-/// Production provider: opens the on-device database, seeds bundled demo
-/// boundaries once, and reports what is stored. Failures become
-/// [BoundarySummary.error]; nothing is fabricated.
+/// Loads the five official local village polygons for map context. Village
+/// administration geometry is not a hazard perimeter and never drives alerts.
 class OfflineBoundaryProvider implements BoundarySummaryProvider {
-  static const assetPath = String.fromEnvironment('BSAS_BOUNDARY_ASSET', defaultValue: 'assets/boundaries/approved_boundaries.geojson');
+  static const assetPath = String.fromEnvironment('BSAS_BOUNDARY_ASSET', defaultValue: 'assets/boundaries/soi_pollachi_villages.geojson');
   static const dbFileName = 'border_safety.db';
 
   /// Loads enabled boundaries through [BoundaryRepository]. The database is
   /// closed after the read; callers should cache the returned list.
   @override
   Future<List<BoundaryModel>> loadEnabledBoundaries() async {
+    if (kIsWeb) {
+      final raw = await rootBundle.loadString(assetPath);
+      return parseBoundariesFromGeoJson(raw).where((b) => b.enabled).toList();
+    }
     final path = p.join(await getDatabasesPath(), dbFileName);
     final appDb = await AppDatabase.open(factory: databaseFactory, path: path);
     try {
       final repository = BoundaryRepository(appDb.db);
       final raw = await rootBundle.loadString(assetPath);
-      final approved = parseBoundariesFromGeoJson(raw).where((b) => !b.isDemo && (b.source?.isNotEmpty ?? false) && (b.version?.isNotEmpty ?? false)).toList();
-      if (approved.isNotEmpty) {
-        await repository.insertBoundaries(approved);
-        return approved.where((b) => b.enabled).toList();
+      final bundled = parseBoundariesFromGeoJson(raw).where((b) => b.enabled).toList();
+      if (bundled.isNotEmpty) {
+        await repository.insertBoundaries(bundled);
+        return bundled;
       }
-      return (await repository.getEnabledBoundaries()).where((b) => !b.isDemo && (b.source?.isNotEmpty ?? false) && (b.version?.isNotEmpty ?? false)).toList();
+      return repository.getEnabledBoundaries();
     } finally {
       await appDb.close();
     }
@@ -63,7 +67,7 @@ class OfflineBoundaryProvider implements BoundarySummaryProvider {
       final stored = await _loadAllBoundaries();
       return BoundarySummary(
         count: stored.length,
-        allDemo: stored.isNotEmpty && stored.every((b) => b.isDemo),
+        allDemo: stored.every((boundary) => boundary.isDemo),
       );
     } catch (e) {
       return BoundarySummary(count: 0, allDemo: true, error: '$e');
@@ -71,17 +75,21 @@ class OfflineBoundaryProvider implements BoundarySummaryProvider {
   }
 
   Future<List<BoundaryModel>> _loadAllBoundaries() async {
+    if (kIsWeb) {
+      final raw = await rootBundle.loadString(assetPath);
+      return parseBoundariesFromGeoJson(raw).where((b) => b.enabled).toList();
+    }
     final path = p.join(await getDatabasesPath(), dbFileName);
     final appDb = await AppDatabase.open(factory: databaseFactory, path: path);
     try {
       final repository = BoundaryRepository(appDb.db);
       final raw = await rootBundle.loadString(assetPath);
-      final approved = parseBoundariesFromGeoJson(raw).where((b) => !b.isDemo && (b.source?.isNotEmpty ?? false) && (b.version?.isNotEmpty ?? false)).toList();
-      if (approved.isNotEmpty) {
-        await repository.insertBoundaries(approved);
-        return approved;
+      final bundled = parseBoundariesFromGeoJson(raw).where((b) => b.enabled).toList();
+      if (bundled.isNotEmpty) {
+        await repository.insertBoundaries(bundled);
+        return bundled;
       }
-      return (await repository.getAllBoundaries()).where((b) => !b.isDemo && (b.source?.isNotEmpty ?? false) && (b.version?.isNotEmpty ?? false)).toList();
+      return repository.getAllBoundaries();
     } finally {
       await appDb.close();
     }

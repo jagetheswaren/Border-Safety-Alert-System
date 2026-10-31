@@ -1,6 +1,6 @@
 import { AuthResponse, DashboardStats, AppEvent, User, Zone, Incident, Alert, PaginatedResponse, IncidentFilterParams, AlertFilterParams, HealthStatus } from './types';
 
-const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1').replace(/\/$/, '');
+const API_URL = (process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_BASE_URL || '/api/v1').replace(/\/$/, '');
 export const SESSION_EXPIRED = 'bsas:session-expired';
 
 export class ApiError extends Error {
@@ -95,3 +95,19 @@ export async function getBordersMetadata(): Promise<Record<string, unknown>> {
 
 
 
+
+export interface GeofenceResult {
+  risk: 'SAFE' | 'WARNING' | 'CRITICAL' | 'UNKNOWN';
+  nearest_zone_id: string | null;
+  alert_id?: string | null;
+  distance_m: number | null;
+  reason?: string;
+}
+export async function checkGeofence(latitude: number, longitude: number, signal?: AbortSignal, recordAlert = false, accuracy?: number | null): Promise<GeofenceResult> {
+  return (await request('/geofence/check', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ latitude, longitude, record_alert: recordAlert, ...(accuracy == null ? {} : { accuracy_m: accuracy }) }), signal })).json();
+}
+
+export interface AiReply { reply: string; provider: string; source: string; success: boolean }
+export async function chatWithAi(message: string, telemetry: Record<string, unknown>, signal: AbortSignal): Promise<AiReply> {
+  return (await request('/ai/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message, telemetry }), signal })).json();
+}

@@ -11,6 +11,8 @@ import 'help_screen.dart';
 import 'onboarding_screen.dart';
 import 'permission_setup_screen.dart';
 import 'privacy_screen.dart';
+import 'emergency_contacts_screen.dart';
+import 'offline_maps_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({
@@ -132,7 +134,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     _buildSwitchTile(
                       key: 'setting-vibration',
                       title: 'Vibration Haptics',
-                      subtitle: 'Physical tactile pulses for boundary escalation',
+                      subtitle: 'Vibrate only after a verified warning; off by default',
                       value: vibration,
                       isDark: isDark,
                       onChanged: (v) => _updatePreferences(widget.preferences.copyWith(vibrationEnabled: v)),
@@ -182,11 +184,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           ),
                           items: const [
                             DropdownMenuItem(value: 'English', child: Text('English')),
-                            DropdownMenuItem(value: 'Tamil', child: Text('Tamil (தமிழ்)')),
                           ],
-                          onChanged: (v) {
-                            if (v != null) setState(() => language = v);
-                          },
+                          onChanged: null,
                         ),
                       ),
                     ),
@@ -301,6 +300,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _settingsCard(
                   isDark: isDark,
                   children: [
+                    _buildNavTile(
+                      icon: Icons.contact_phone_outlined,
+                      iconColor: BsasColors.criticalRed,
+                      title: 'Emergency Contacts',
+                      subtitle: 'Manage SMS & WhatsApp SOS recipients',
+                      isDark: isDark,
+                      onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const EmergencyContactsScreen())),
+                    ),
+                    _divider(isDark),
+                    _buildNavTile(
+                      icon: Icons.map_outlined,
+                      iconColor: isDark ? BsasColors.radarCyan : BsasColors.primaryBlue,
+                      title: 'Offline GIS & Map Cache',
+                      subtitle: 'Regional tile downloads & local boundaries',
+                      isDark: isDark,
+                      onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const OfflineMapsScreen())),
+                    ),
+                    _divider(isDark),
                     _buildNavTile(
                       icon: Icons.security,
                       iconColor: isDark ? BsasColors.radarCyan : BsasColors.primaryBlue,

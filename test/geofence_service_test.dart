@@ -19,10 +19,10 @@ BoundaryModel squareBoundary({
   return BoundaryModel(
     id: id,
     name: name,
-    type: 'forest',
+    type: 'restricted',
     riskLevel: RiskLevel.medium,
     enabled: enabled,
-    source: 'synthetic demo',
+    source: 'test-authorized-fixture',
     polygon: [
       [
         const BoundaryPosition(longitude: -0.01, latitude: -0.01),
@@ -120,6 +120,21 @@ void main() {
   });
 
   group('GeoFenceService', () {
+    test('official village limits are map context, never danger alerts', () async {
+      final fixture = squareBoundary();
+      final village = BoundaryModel(
+        id: 'soi-village',
+        name: 'Surveyed village',
+        type: 'village',
+        riskLevel: RiskLevel.low,
+        source: 'Survey of India ABDB',
+        polygon: fixture.polygon,
+      );
+      final result = await serviceWith([village]).evaluate(location(0, 0));
+      expect(result.state, GeoFenceState.unknown);
+      expect(result.nearestBoundary, isNull);
+    });
+
     test('returns gpsUnavailable without a location; unknown without usable boundaries', () async {
       final service = serviceWith([]);
       expect((await service.evaluate(null)).state, GeoFenceState.gpsUnavailable);
@@ -129,6 +144,21 @@ void main() {
         ]).evaluate(location(1, 1))).state,
         GeoFenceState.unknown,
       );
+    });
+
+    test('does not use bundled BSAS-labelled sample polygons for alerts', () async {
+      final fixture = squareBoundary();
+      final unverified = BoundaryModel(
+        id: 'bundled-sample',
+        name: 'Sample restricted area',
+        type: 'restricted',
+        riskLevel: RiskLevel.high,
+        source: 'BSAS-OFFICIAL-SURVEY-v1.0',
+        polygon: fixture.polygon,
+      );
+      final result = await serviceWith([unverified]).evaluate(location(0, 0));
+      expect(result.state, GeoFenceState.unknown);
+      expect(result.nearestBoundary, isNull);
     });
 
     test('selects deterministic threshold states and inside state', () async {

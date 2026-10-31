@@ -2,20 +2,28 @@ import 'dart:async';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
 
+abstract interface class SoundAlertOutput {
+  Future<void> playCritical();
+  Future<void> playWarning();
+  void setMuted(bool muted);
+}
+
 /// Service responsible for playing local alert audio assets with cooldown debouncing.
-class SoundService {
+class SoundService implements SoundAlertOutput {
   SoundService({AudioPlayer? player}) : _player = player ?? AudioPlayer() {
-    _player.setAudioContext(
-      AudioContext(
-        android: const AudioContextAndroid(
-          isSpeakerphoneOn: true,
-          stayAwake: true,
-          contentType: AndroidContentType.sonification,
-          usageType: AndroidUsageType.alarm,
-          audioFocus: AndroidAudioFocus.gainTransientMayDuck,
+    try {
+      _player.setAudioContext(
+        AudioContext(
+          android: const AudioContextAndroid(
+            isSpeakerphoneOn: true,
+            stayAwake: true,
+            contentType: AndroidContentType.sonification,
+            usageType: AndroidUsageType.alarm,
+            audioFocus: AndroidAudioFocus.gainTransientMayDuck,
+          ),
         ),
-      ),
-    );
+      );
+    } catch (_) {}
   }
 
   final AudioPlayer _player;
@@ -30,6 +38,7 @@ class SoundService {
   bool get isMuted => _isMuted;
   double get volume => _volume;
 
+  @override
   void setMuted(bool muted) {
     _isMuted = muted;
     if (muted) {
@@ -42,6 +51,7 @@ class SoundService {
     unawaited(_player.setVolume(_volume));
   }
 
+  @override
   Future<void> playWarning() async {
     if (_isMuted) return;
     final now = DateTime.now();
@@ -57,6 +67,7 @@ class SoundService {
     }
   }
 
+  @override
   Future<void> playCritical() async {
     if (_isMuted) return;
     final now = DateTime.now();

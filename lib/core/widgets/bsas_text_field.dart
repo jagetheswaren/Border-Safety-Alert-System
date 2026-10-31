@@ -14,6 +14,7 @@ class BSASTextField extends StatefulWidget {
     this.keyboardType,
     this.textInputAction,
     this.validator,
+    this.errorText,
     this.onSubmitted,
     this.enabled = true,
   });
@@ -26,6 +27,7 @@ class BSASTextField extends StatefulWidget {
   final TextInputType? keyboardType;
   final TextInputAction? textInputAction;
   final FormFieldValidator<String>? validator;
+  final String? errorText;
   final ValueChanged<String>? onSubmitted;
   final bool enabled;
 
@@ -107,6 +109,7 @@ class _BSASTextFieldState extends State<BSASTextField> {
             ),
             decoration: InputDecoration(
               isDense: true,
+              errorText: widget.errorText,
               contentPadding: const EdgeInsets.symmetric(
                 horizontal: 14,
                 vertical: 14,

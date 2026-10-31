@@ -86,7 +86,7 @@ class _RouteScreenState extends State<RouteScreen> {
                 const SizedBox(width: BsasSpacing.sm),
                 Expanded(
                   child: Text(
-                    'Error calculating safe corridor: $e',
+                    'Error creating route preview: $e',
                     style: BsasTypography.body.copyWith(color: BsasColors.text(Theme.of(context).brightness == Brightness.dark)),
                   ),
                 ),
@@ -126,7 +126,7 @@ class _RouteScreenState extends State<RouteScreen> {
                 Icon(Icons.alt_route_rounded, color: BsasColors.radarCyan, size: 20),
                 const SizedBox(width: BsasSpacing.sm),
                 Text(
-                  'SAFE ESCAPE ROUTE',
+                  'ROUTE PREVIEW',
                   style: BsasTypography.heading.copyWith(
                     color: BsasColors.text(isDark),
                     letterSpacing: 1.2,
@@ -290,10 +290,10 @@ class _RouteScreenState extends State<RouteScreen> {
                               Expanded(
                                 child: Text(
                                   _result!.status == RoutingStatus.alreadySafe
-                                      ? 'YOU ARE SAFE'
+                                      ? 'NO CONFIGURED HAZARD'
                                       : (_result!.status == RoutingStatus.available
-                                          ? 'SAFE ROUTE FOUND'
-                                          : 'NO ROUTE AVAILABLE'),
+                                          ? 'ROUTE PREVIEW READY'
+                                          : 'ROUTE UNAVAILABLE'),
                                   style: BsasTypography.heading.copyWith(
                                     fontSize: 16,
                                     letterSpacing: 1.2,
@@ -416,7 +416,7 @@ class _RouteScreenState extends State<RouteScreen> {
                           ),
                           const SizedBox(height: BsasSpacing.md),
                           Text(
-                            'Tap the button below to compute an obstacle-free escape route away from restricted border boundaries using deterministic A* pathfinding.',
+                            'A* can preview a path around configured polygons. It does not use a live road network, terrain, closures, or verified borders; do not use it as a safety navigation instruction.',
                             style: BsasTypography.body.copyWith(
                               color: BsasColors.textSec(isDark),
                               height: 1.4,
@@ -452,7 +452,7 @@ class _RouteScreenState extends State<RouteScreen> {
                             )
                           : const Icon(Icons.navigation_outlined, size: 20),
                       label: Text(
-                        _isLoading ? 'CALCULATING SAFE CORRIDOR...' : 'CALCULATE SAFE ROUTE',
+                        _isLoading ? 'CALCULATING ROUTE PREVIEW...' : 'CALCULATE ROUTE PREVIEW',
                         style: BsasTypography.monospace.copyWith(
                           color: Colors.white,
                           fontWeight: FontWeight.w700,

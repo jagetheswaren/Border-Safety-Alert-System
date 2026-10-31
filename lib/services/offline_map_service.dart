@@ -124,13 +124,13 @@ class OfflineMapService extends ChangeNotifier {
   static const defaultRegion = OfflineRegion(
     id: 'pollachi_coimbatore',
     name: 'Pollachi / Coimbatore Border Sector',
-    description: 'Western Ghats corridor operational region',
-    minLat: 10.50,
-    maxLat: 11.10,
-    minLon: 76.70,
-    maxLon: 77.20,
+    description: 'Illustrative Western Ghats boundary preview; not an official map',
+    minLat: 10.35,
+    maxLat: 10.80,
+    minLon: 76.80,
+    maxLon: 77.15,
     minZoom: 8,
-    maxZoom: 13,
+    maxZoom: 12,
     version: '2026.09-v1',
   );
 
@@ -183,6 +183,7 @@ class OfflineMapService extends ChangeNotifier {
   String? get storagePath => _storagePath;
   String? get errorMessage => _errorMessage;
   int get tileCount => _tileCount;
+  int get cachedTilesCount => _tileCount;
   double get storageMb => _storageMb;
   String? get mapVersion => isReady ? defaultRegion.version : null;
   String? get manifestChecksum => _manifestChecksum;
@@ -230,6 +231,7 @@ class OfflineMapService extends ChangeNotifier {
   }
 
   Future<void> initialize({DatabaseFactory? factory}) async {
+    if (kIsWeb) return;
     final dir = await _tileDir();
     final manifest = await _manifestFile();
     if (!await manifest.exists()) {
@@ -581,6 +583,7 @@ class OfflineMapService extends ChangeNotifier {
   }
 
   Future<double> getStorageUsageMb() async {
+    if (kIsWeb) return 0.0;
     final dir = await _tileDir();
     if (!await dir.exists()) return 0.0;
     var bytes = 0;

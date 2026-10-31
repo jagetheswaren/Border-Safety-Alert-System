@@ -83,7 +83,7 @@ class BoundaryModel {
   final DateTime? updatedAt;
   final bool enabled;
 
-  /// True when the source identifies synthetic demo data (never authoritative).
+  /// True when the source is synthetic or has not been independently verified.
   ///
   /// Matches `SYNTHETIC` anywhere, or `DEMO` as a standalone token, so real
   /// sources that merely contain those letters (e.g. "DemoLand survey")
@@ -91,7 +91,27 @@ class BoundaryModel {
   bool get isDemo {
     final marker = (source ?? '').toUpperCase();
     if (marker.contains('SYNTHETIC')) return true;
+    // A project-authored label is not evidence of official survey provenance.
+    // Treat bundled BSAS sample geometry as illustrative until verified data
+    // with documented provenance is supplied.
+    if (marker.startsWith('BSAS-') || marker.contains('UNVERIFIED') || marker.contains('ILLUSTRATIVE')) return true;
     return RegExp('(^|[^A-Z])DEMO([^A-Z]|\$)').hasMatch(marker);
+  }
+
+  /// Administrative settlements are for map context, never hazard alerts.
+  bool get isAlertEligible {
+    if (!enabled || isDemo) return false;
+    final normalized = type.toLowerCase();
+    return normalized == 'restricted' ||
+        normalized == 'military' ||
+        normalized == 'verified_protected_area' ||
+        normalized == 'verified_reserve_forest' ||
+        normalized == 'official_forest_boundary' ||
+        normalized == 'official_forest_reserve' ||
+        normalized == 'forest' ||
+        normalized == 'coastal' ||
+        normalized == 'admin_country' ||
+        normalized == 'admin_state';
   }
 
   Map<String, Object?> toMap() {

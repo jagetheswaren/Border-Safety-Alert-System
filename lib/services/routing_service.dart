@@ -93,8 +93,20 @@ class RoutingService {
     LocationModel currentLocation,
     List<BoundaryModel> boundaries,
   ) async {
+    if (currentLocation.isStale ||
+        !LocationModel.isValidLatitude(currentLocation.latitude) ||
+        !LocationModel.isValidLongitude(currentLocation.longitude) ||
+        currentLocation.accuracy == null || !currentLocation.accuracy!.isFinite ||
+        currentLocation.accuracy! < 0 || currentLocation.accuracy! > 200) {
+      return RoutingResult.unknown(message: 'A fresh location with accuracy within 200 m is required.');
+    }
+    boundaries = boundaries.where((b) => b.enabled && !b.isDemo).toList();
     if (boundaries.isEmpty) {
-      return RoutingResult.alreadySafe(message: 'No boundaries available.');
+      return RoutingResult.unknown(message: 'No configured boundaries available; safety cannot be determined.');
+    }
+    if (boundaries.any((b) => b.polygon.isEmpty || b.polygon.any((ring) =>
+        ring.length < 4 || ring.any((p) => !LocationModel.isValidLatitude(p.latitude) || !LocationModel.isValidLongitude(p.longitude))))) {
+      return RoutingResult.unknown(message: 'Boundary geometry is invalid; route evaluation unavailable.');
     }
     final req = _RoutingRequest(
       currentLocation.latitude,

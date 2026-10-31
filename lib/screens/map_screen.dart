@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -22,8 +23,9 @@ import '../services/offline_map_service.dart';
 import '../services/offline_tile_provider.dart';
 import '../services/routing_service.dart';
 import '../services/tracking_service.dart';
+import '../services/sos_service.dart';
+import '../services/gis_layer_service.dart';
 import '../widgets/geofence_status_card.dart';
-import '../widgets/gps_status_chip.dart';
 
 enum MapLayerType {
   hybrid,
@@ -41,6 +43,7 @@ class MapScreen extends StatefulWidget {
   const MapScreen({
     super.key,
     this.gps,
+    this.onGpsRetry,
     this.geoFence = const GeoFenceResult(state: GeoFenceState.unknown),
     this.trackingService,
     this.offlineMapService,
@@ -48,9 +51,13 @@ class MapScreen extends StatefulWidget {
     this.loadBoundaries,
     this.targetCoordinate,
     this.initialFollowUser = true,
+    this.sosService,
+    this.gisLayerService,
+    this.checkConnectivity,
   });
 
   final GpsSnapshot? gps;
+  final VoidCallback? onGpsRetry;
   final GeoFenceResult geoFence;
   final TrackingService? trackingService;
   final OfflineMapService? offlineMapService;
@@ -58,6 +65,9 @@ class MapScreen extends StatefulWidget {
   final Future<List<BoundaryModel>> Function()? loadBoundaries;
   final LatLng? targetCoordinate;
   final bool initialFollowUser;
+  final SosService? sosService;
+  final GisLayerService? gisLayerService;
+  final Future<bool> Function()? checkConnectivity;
 
   static const defaultBaseCoordinate = LatLng(10.712530, 76.979150);
 
@@ -74,7 +84,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
   final RoutingService _routingService = RoutingService();
 
   MapNavigationMode _navMode = MapNavigationMode.follow;
-  MapLayerType _currentLayer = MapLayerType.hybrid;
+  MapLayerType _currentLayer = MapLayerType.standard;
   bool _showSafetyZones = true;
   bool _showTrail = true;
   bool _showAccuracyRing = true;
@@ -119,7 +129,9 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
   }
 
   Future<void> _checkConnectivity() async {
-    final online = await _connectivity.isOnline();
+    final online = widget.checkConnectivity != null
+        ? await widget.checkConnectivity!()
+        : await _connectivity.isOnline();
     if (mounted && online != _isOnline) {
       setState(() => _isOnline = online);
     }
@@ -149,7 +161,8 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     final newLoc = widget.gps?.location;
 
     // Follow mode camera repositioning on real GPS fix
-    if (newLoc != null && _navMode == MapNavigationMode.follow) {
+    final isStale = widget.gps?.stale == true || newLoc?.isStale == true;
+    if (newLoc != null && !isStale && _navMode == MapNavigationMode.follow) {
       final pos = LatLng(newLoc.latitude, newLoc.longitude);
       if (!_hasInitialCentered) {
         _hasInitialCentered = true;
@@ -164,6 +177,24 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     // Record trail
     if (newLoc != null && _tracking.isTracking) {
       _tracking.addFix(newLoc);
+    }
+  }
+
+  void _showConfiguredBoundaries() {
+    final points = <LatLng>[
+      for (final boundary in _boundaries)
+        for (final ring in boundary.polygon)
+          for (final point in ring) LatLng(point.latitude, point.longitude),
+    ];
+    if (points.isNotEmpty) {
+      _mapController.fitCamera(
+        CameraFit.bounds(
+          bounds: LatLngBounds.fromPoints(points),
+          padding: const EdgeInsets.all(40),
+          maxZoom: 14.0,
+        ),
+      );
+      setState(() => _navMode = MapNavigationMode.free);
     }
   }
 
@@ -301,7 +332,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
               initialCenter: _cameraAnchorPosition,
               initialZoom: userPos != null ? 15.0 : 13.0,
               maxZoom: 18.0,
-              minZoom: 6.0,
+              minZoom: 2.0,
               initialRotation: 0.0,
               onPositionChanged: (camera, hasGesture) {
                 if (hasGesture && _navMode == MapNavigationMode.follow) {
@@ -351,13 +382,11 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
               else
                 TileLayer(
                   key: const ValueKey('tile-standard'),
-                  urlTemplate:
-                      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
+                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                   userAgentPackageName: 'com.bordersafety.border_safety_alert',
-                  tileProvider: OfflineTileProvider(
-                    mapService: _offlineMap,
-                    allowNetworkFallback: _isOnline,
-                  ),
+                  tileProvider: NetworkTileProvider(),
+                  fallbackUrl:
+                      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
                 ),
 
               // Real Safety Boundaries (Polygons) from Repository
@@ -566,61 +595,64 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                             ),
                           ],
                         ),
-                        child: Row(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            StatusDot(state: _statusStateForGeo(geoFence.state)),
-                            const SizedBox(width: 8),
-                            Flexible(
-                              child: Text(
-                                _labelForGeoState(geoFence.state),
-                                style: BsasTypography.monospace.copyWith(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: 1.0,
-                                  fontSize: 13,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-
-                      // Secondary Pill: GPS State + Offline Badge
-                      Wrap(
-                        spacing: 6,
-                        runSpacing: 4,
-                        children: [
-                          Container(
-                            key: const Key('map-gps-line'),
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: BsasColors.darkSurface.withValues(alpha: 0.90),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: BsasColors.darkBorder),
-                            ),
-                            child: Row(
+                            Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                GpsStatusChip(state: live.fix),
-                                const SizedBox(width: 6),
+                                StatusDot(state: _statusStateForGeo(geoFence.state)),
+                                const SizedBox(width: 8),
                                 Flexible(
                                   child: Text(
-                                    isGpsLocked
-                                        ? 'GPS LOCKED (±${accuracy.toStringAsFixed(0)}m)'
-                                        : (live.message ?? 'Acquiring GPS...'),
-                                    style: BsasTypography.monoDiagnostics.copyWith(
-                                      fontSize: 10,
-                                      color: isGpsLocked ? Colors.white70 : BsasColors.warningOrange,
+                                    _labelForGeoState(geoFence.state),
+                                    style: BsasTypography.monospace.copyWith(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w800,
+                                      letterSpacing: 0.8,
+                                      fontSize: 12.5,
                                     ),
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
                               ],
                             ),
-                          ),
+                            const SizedBox(height: 4),
+                            Row(
+                              key: const Key('map-gps-line'),
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  fix != null ? Icons.gps_fixed : Icons.gps_not_fixed,
+                                  size: 11,
+                                  color: fix != null ? BsasColors.safeGreen : BsasColors.warningOrange,
+                                ),
+                                const SizedBox(width: 5),
+                                Flexible(
+                                  child: Text(
+                                    fix != null
+                                        ? 'GPS LOCKED (±${accuracy.toStringAsFixed(0)}m)${live.stale ? ' · CACHED' : ''}'
+                                        : (live.message ?? 'Acquiring GPS...'),
+                                    style: BsasTypography.monoDiagnostics.copyWith(
+                                      fontSize: 10,
+                                      color: fix != null ? Colors.white70 : BsasColors.warningOrange,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+
+                      // Offline Badge
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 4,
+                        children: [
                           if (!_isOnline || _currentLayer == MapLayerType.offline)
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -703,7 +735,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                         icon: const Icon(Icons.add, color: Colors.white, size: 20),
                         tooltip: 'Zoom In',
                         onPressed: () {
-                          final nextZoom = (_mapController.camera.zoom + 1.0).clamp(6.0, 18.0);
+                          final nextZoom = (_mapController.camera.zoom + 1.0).clamp(2.0, 18.0);
                           _mapController.move(_mapController.camera.center, nextZoom);
                         },
                       ),
@@ -712,7 +744,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                         icon: const Icon(Icons.remove, color: Colors.white, size: 20),
                         tooltip: 'Zoom Out',
                         onPressed: () {
-                          final nextZoom = (_mapController.camera.zoom - 1.0).clamp(6.0, 18.0);
+                          final nextZoom = (_mapController.camera.zoom - 1.0).clamp(2.0, 18.0);
                           _mapController.move(_mapController.camera.center, nextZoom);
                         },
                       ),
@@ -727,6 +759,15 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                   color: Colors.white,
                   tooltip: 'Map Layers',
                   onTap: _showLayerSheet,
+                ),
+                const SizedBox(height: 10),
+
+                // Show Configured Boundaries
+                _circularActionBtn(
+                  icon: Icons.crop_free,
+                  color: Colors.white,
+                  tooltip: 'Show configured boundaries',
+                  onTap: _showConfiguredBoundaries,
                 ),
                 const SizedBox(height: 10),
 
@@ -786,17 +827,17 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
           // ==========================================
           DraggableScrollableSheet(
             controller: _sheetController,
-            initialChildSize: 0.15,
-            minChildSize: 0.13,
+            initialChildSize: 0.11,
+            minChildSize: 0.10,
             maxChildSize: 0.58,
             snap: true,
-            snapSizes: const [0.15, 0.58],
+            snapSizes: const [0.11, 0.58],
             builder: (context, scrollController) {
               return Container(
                 decoration: BoxDecoration(
-                  color: BsasColors.darkSurface.withValues(alpha: 0.96),
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-                  border: const Border(
+                  color: BsasColors.darkSurface,
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                  border: Border(
                     top: BorderSide(color: BsasColors.darkBorder, width: 1.2),
                     left: BorderSide(color: BsasColors.darkBorder, width: 0.8),
                     right: BorderSide(color: BsasColors.darkBorder, width: 0.8),

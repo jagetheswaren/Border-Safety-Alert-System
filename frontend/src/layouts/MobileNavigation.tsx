@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   Map,
-  FileText,
+  Bot,
   Bell,
   MoreHorizontal,
 } from "lucide-react";
@@ -23,7 +23,7 @@ export const MobileNavigation: React.FC<MobileNavigationProps> = ({
   const links = [
     { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
     { href: "/dashboard/map", label: "Map", icon: Map },
-    { href: "/dashboard/incidents", label: "Incidents", icon: FileText },
+    { href: "/dashboard/ai", label: "AI", icon: Bot },
     { href: "/dashboard/alerts", label: "Alerts", icon: Bell },
   ];
 

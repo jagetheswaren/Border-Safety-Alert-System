@@ -13,7 +13,6 @@ import {
   AlertTriangle,
   Radio,
   Wifi,
-  WifiOff,
   RefreshCw,
 } from 'lucide-react';
 import { MapTypeMode, MapLayersVisibility, MapProvider } from '../types/map.types';
@@ -58,7 +57,7 @@ export function MapToolbar({
   onToggleFullscreen,
 }: MapToolbarProps) {
   return (
-    <div className="absolute top-4 left-6 z-20 flex flex-wrap items-center gap-1.5 bg-gray-900/95 backdrop-blur-md border border-gray-800 p-1.5 rounded-xl shadow-2xl text-xs text-white">
+    <div className="absolute top-3 left-3 right-3 z-20 flex flex-wrap items-center gap-1.5 bg-gray-900/95 backdrop-blur-md border border-gray-800 p-1.5 rounded-xl shadow-2xl text-xs text-white">
       {/* Search Toggle */}
       <button
         onClick={onToggleSearch}
@@ -77,13 +76,13 @@ export function MapToolbar({
       <button
         onClick={onLocateUser}
         disabled={isLocating}
-        title="Locate my position (GPS)"
+        title="My Current Location"
         className={`flex items-center space-x-1 px-2.5 py-1.5 rounded-lg border bg-gray-800 text-gray-300 border-gray-700/80 hover:bg-gray-700 transition-colors ${
           isLocating ? 'animate-pulse text-blue-400' : ''
         }`}
       >
         <Crosshair className={`w-3.5 h-3.5 ${isLocating ? 'animate-spin' : ''}`} />
-        <span className="hidden sm:inline font-medium">GPS Fix</span>
+        <span className="hidden sm:inline font-medium">My Location</span>
       </button>
 
       {/* Route Planner Toggle */}
@@ -209,7 +208,7 @@ export function MapToolbar({
       {/* Online / Offline Provider Badge */}
       <button
         onClick={onToggleProvider}
-        title="Click to switch map engine (Google Maps / Offline MapLibre)"
+        title="Map provider"
         className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold tracking-wider border uppercase transition-colors ${
           activeProvider === 'google'
             ? 'bg-emerald-950/80 text-emerald-400 border-emerald-700/80 hover:bg-emerald-900/80'
@@ -223,8 +222,8 @@ export function MapToolbar({
           </>
         ) : (
           <>
-            <WifiOff className="w-3 h-3 text-amber-400" />
-            <span>OFFLINE</span>
+            <Wifi className="w-3 h-3 text-amber-400" />
+            <span>LEAFLET</span>
           </>
         )}
       </button>

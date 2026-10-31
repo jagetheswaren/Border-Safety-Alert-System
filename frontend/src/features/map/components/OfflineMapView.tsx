@@ -1,291 +1,63 @@
 "use client";
 
-import React, { useEffect, useRef } from 'react';
-import maplibregl from 'maplibre-gl';
-import 'maplibre-gl/dist/maplibre-gl.css';
-import {
-  LatLngLiteral,
-  BorderFeature,
-  SafetyZoneFeature,
-  IncidentMarkerItem,
-  DeviceMarkerItem,
-  MapLayersVisibility,
-} from '../types/map.types';
+import { useEffect, useState } from 'react';
+import { MapContainer, ZoomControl, TileLayer, GeoJSON, Polygon, Circle, CircleMarker, Popup, useMap } from 'react-leaflet';
+import 'leaflet/dist/leaflet.css';
+import { MapTypeMode, LatLngLiteral, BorderFeature, SafetyZoneFeature, IncidentMarkerItem, DeviceMarkerItem, MapLayersVisibility } from '../types/map.types';
 
 interface OfflineMapViewProps {
+  mapType: MapTypeMode;
   layers: MapLayersVisibility;
   borders: BorderFeature[];
   safetyZones: SafetyZoneFeature[];
   incidents: IncidentMarkerItem[];
   devices: DeviceMarkerItem[];
   userLocation: LatLngLiteral | null;
+  userAccuracy?: number | null;
   selectedBorder: BorderFeature | null;
   onSelectBorder?: (border: BorderFeature) => void;
   centerTarget?: LatLngLiteral | null;
 }
 
-export function OfflineMapView({
-  layers,
-  borders,
-  safetyZones,
-  incidents,
-  devices,
-  userLocation,
-  selectedBorder,
-  onSelectBorder,
-  centerTarget,
-}: OfflineMapViewProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<maplibregl.Map | null>(null);
-  const markersRef = useRef<maplibregl.Marker[]>([]);
-  const onSelectBorderRef = useRef(onSelectBorder);
+function Viewport({ target }: { target?: LatLngLiteral | null }) {
+  const map = useMap();
   useEffect(() => {
-    onSelectBorderRef.current = onSelectBorder;
-  }, [onSelectBorder]);
-
+    if (target) map.flyTo([target.lat, target.lng], map.getZoom(), { duration: 0.6 });
+  }, [map, target]);
   useEffect(() => {
-    if (!containerRef.current || mapRef.current) return;
+    const observer = new ResizeObserver(() => map.invalidateSize());
+    observer.observe(map.getContainer());
+    return () => observer.disconnect();
+  }, [map]);
+  return null;
+}
 
-    // Fast, lightweight, offline-compatible style with raster fallback
-    const map = new maplibregl.Map({
-      container: containerRef.current,
-      style: {
-        version: 8,
-        sources: {
-          'osm-tiles': {
-            type: 'raster',
-            tiles: [
-              'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
-              'https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png'
-            ],
-            tileSize: 256,
-            attribution: '&copy; Esri, TomTom, Garmin, FAO, NOAA, USGS | BSAS Map Engine',
-          },
-        },
-        layers: [
-          {
-            id: 'osm-tiles-layer',
-            type: 'raster',
-            source: 'osm-tiles',
-            minzoom: 0,
-            maxzoom: 19,
-          },
-        ],
-      },
-      center: centerTarget ? [centerTarget.lng, centerTarget.lat] : [78.25, 10.35],
-      zoom: 9,
-    });
+function valid(lat: number, lng: number) { return Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180; }
 
-    mapRef.current = map;
-
-    map.on('load', () => {
-      // Add Border GeoJSON Source
-      map.addSource('bsas-borders', {
-        type: 'geojson',
-        data: {
-          type: 'FeatureCollection',
-          features: borders as unknown as GeoJSON.Feature[],
-        },
-      });
-
-      // Add Border Lines Layer
-      map.addLayer({
-        id: 'bsas-borders-line',
-        type: 'line',
-        source: 'bsas-borders',
-        layout: {
-          'line-join': 'round',
-          'line-cap': 'round',
-          visibility: layers.borders ? 'visible' : 'none',
-        },
-        paint: {
-          'line-color': '#ef4444',
-          'line-width': 4,
-          'line-opacity': 0.9,
-        },
-      });
-
-      // Add Safety Zones Source
-      const zoneGeoJSONFeatures = safetyZones.map((z) => ({
-        type: 'Feature' as const,
-        id: z.id,
-        properties: { name: z.name, color: z.color, severity: z.severity },
-        geometry: {
-          type: 'Polygon' as const,
-          coordinates: [z.coordinates.map((pt) => [pt[1], pt[0]])],
-        },
-      }));
-
-      map.addSource('bsas-zones', {
-        type: 'geojson',
-        data: {
-          type: 'FeatureCollection',
-          features: zoneGeoJSONFeatures as unknown as GeoJSON.Feature[],
-        },
-      });
-
-      // Add Safety Zones Fill Layer
-      map.addLayer({
-        id: 'bsas-zones-fill',
-        type: 'fill',
-        source: 'bsas-zones',
-        layout: {
-          visibility: layers.safetyZones ? 'visible' : 'none',
-        },
-        paint: {
-          'fill-color': ['get', 'color'],
-          'fill-opacity': 0.25,
-        },
-      });
-
-      map.addLayer({
-        id: 'bsas-zones-outline',
-        type: 'line',
-        source: 'bsas-zones',
-        layout: {
-          visibility: layers.safetyZones ? 'visible' : 'none',
-        },
-        paint: {
-          'line-color': ['get', 'color'],
-          'line-width': 1.5,
-        },
-      });
-
-      // Border line click listener
-      map.on('click', 'bsas-borders-line', (e) => {
-        if (e.features && e.features.length > 0 && onSelectBorderRef.current) {
-          const feat = e.features[0];
-          onSelectBorderRef.current({
-            type: 'Feature',
-            id: String(feat.id || feat.properties?.id || ''),
-            properties: feat.properties as BorderFeature['properties'],
-            geometry: feat.geometry as BorderFeature['geometry'],
-          });
-        }
-      });
-    });
-
-    return () => {
-      map.remove();
-      mapRef.current = null;
-    };
-    // Initialize once on mount
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Update borders data when changed
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !map.isStyleLoaded()) return;
-
-    const src = map.getSource('bsas-borders') as maplibregl.GeoJSONSource;
-    if (src) {
-      src.setData({
-        type: 'FeatureCollection',
-        features: borders as unknown as GeoJSON.Feature[],
-      });
-    }
-  }, [borders]);
-
-  // Update layer visibility
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !map.isStyleLoaded()) return;
-
-    if (map.getLayer('bsas-borders-line')) {
-      map.setLayoutProperty('bsas-borders-line', 'visibility', layers.borders ? 'visible' : 'none');
-    }
-    if (map.getLayer('bsas-zones-fill')) {
-      map.setLayoutProperty('bsas-zones-fill', 'visibility', layers.safetyZones ? 'visible' : 'none');
-    }
-    if (map.getLayer('bsas-zones-outline')) {
-      map.setLayoutProperty('bsas-zones-outline', 'visibility', layers.safetyZones ? 'visible' : 'none');
-    }
-  }, [layers.borders, layers.safetyZones]);
-
-  // Update markers (Incidents, Devices, User position)
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map) return;
-
-    // Clean up old markers
-    markersRef.current.forEach((m) => m.remove());
-    markersRef.current = [];
-
-    const newMarkers: maplibregl.Marker[] = [];
-
-    // Incidents
-    if (layers.incidents) {
-      incidents.forEach((inc) => {
-        if (!inc.latitude || !inc.longitude) return;
-
-        const el = document.createElement('div');
-        el.className = 'w-4 h-4 rounded-full bg-red-600 border-2 border-white shadow-md cursor-pointer';
-        el.title = `${inc.title} (${inc.severity})`;
-
-        const popup = new maplibregl.Popup({ offset: 15 }).setHTML(`
-          <div style="font-family: sans-serif; font-size: 11px; padding: 2px;">
-            <b>${inc.title}</b><br/>
-            <span style="color: #ef4444; font-weight: bold;">${inc.severity}</span> - ${inc.status}
-          </div>
-        `);
-
-        const marker = new maplibregl.Marker({ element: el })
-          .setLngLat([inc.longitude, inc.latitude])
-          .setPopup(popup)
-          .addTo(map);
-
-        newMarkers.push(marker);
-      });
-    }
-
-    // Active Field Devices
-    if (layers.devices) {
-      devices.forEach((dev) => {
-        if (!dev.latitude || !dev.longitude) return;
-
-        const devEl = document.createElement('div');
-        devEl.className = 'w-4 h-4 rounded-full bg-emerald-500 border-2 border-white shadow-md cursor-pointer';
-        devEl.title = `Unit ${dev.deviceId} (${dev.status})`;
-
-        const popup = new maplibregl.Popup({ offset: 15 }).setHTML(`
-          <div style="font-family: sans-serif; font-size: 11px; padding: 2px;">
-            <b>Unit: ${dev.deviceId}</b><br/>
-            Status: <span style="color: #10b981; font-weight: bold;">${dev.status}</span>
-          </div>
-        `);
-
-        const marker = new maplibregl.Marker({ element: devEl })
-          .setLngLat([dev.longitude, dev.latitude])
-          .setPopup(popup)
-          .addTo(map);
-
-        newMarkers.push(marker);
-      });
-    }
-
-    // User Location
-    if (userLocation) {
-      const userEl = document.createElement('div');
-      userEl.className = 'w-5 h-5 rounded-full bg-blue-500 border-2 border-white ring-4 ring-blue-500/25';
-      userEl.title = 'Your GPS Location';
-
-      const userMarker = new maplibregl.Marker({ element: userEl })
-        .setLngLat([userLocation.lng, userLocation.lat])
-        .addTo(map);
-
-      newMarkers.push(userMarker);
-    }
-
-    markersRef.current = newMarkers;
-  }, [incidents, devices, userLocation, layers.incidents, layers.devices]);
-
-  return (
-    <div className="w-full h-full relative">
-      <div ref={containerRef} className="w-full h-full" />
-      <div className="absolute top-4 right-6 z-10 px-3 py-1 bg-amber-950/90 border border-amber-800 text-amber-300 rounded-lg text-xs font-semibold shadow-lg backdrop-blur-sm">
-        Offline MapLibre Mode Active {selectedBorder ? `| ${selectedBorder.properties.boundary_name}` : ''}
-      </div>
-    </div>
-  );
+/** Existing key-free map surface. Uses online tiles; does not promise offline caching. */
+export function OfflineMapView({ mapType, layers, borders, safetyZones, incidents, devices, userLocation, userAccuracy, selectedBorder, onSelectBorder, centerTarget }: OfflineMapViewProps) {
+  const [tileError, setTileError] = useState(false);
+  const satellite = mapType === 'satellite' || mapType === 'hybrid';
+  return <div className="w-full h-full min-h-[400px] relative">
+    <MapContainer className="bsas-live-map" zoomControl={false} center={centerTarget ? [centerTarget.lat, centerTarget.lng] : [10.35, 78.25]} zoom={9} minZoom={2} maxZoom={19} style={{ height: '100%', width: '100%', minHeight: 400, zIndex: 0 }}>
+      <ZoomControl position="topright" />
+      <Viewport target={centerTarget} />
+      <TileLayer key={satellite ? 'satellite' : 'street'}
+        url={satellite ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}' : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'}
+        attribution={satellite ? '&copy; Esri, Maxar, Earthstar Geographics' : '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'}
+        maxNativeZoom={satellite ? 18 : 19}
+        eventHandlers={{ tileerror: () => setTileError(true), tileload: () => setTileError(false) }} />
+      {mapType === 'hybrid' && <TileLayer url="https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}" attribution="&copy; Esri" />}
+      {layers.borders && borders.map(border => <GeoJSON key={JSON.stringify(border)} data={border as unknown as GeoJSON.Feature} style={{ color: '#ef4444', weight: 3, fillOpacity: 0 }} eventHandlers={{ click: () => onSelectBorder?.(border) }} />)}
+      {layers.safetyZones && safetyZones.map(zone => <Polygon key={zone.id} positions={zone.rings ?? [zone.coordinates]} pathOptions={{ color: zone.color, fillOpacity: zone.fillOpacity }}><Popup>{zone.name} · {zone.severity}</Popup></Polygon>)}
+      {layers.incidents && incidents.filter(i => valid(i.latitude, i.longitude)).map(i => <CircleMarker key={i.id} center={[i.latitude, i.longitude]} radius={7} pathOptions={{ color: 'white', fillColor: '#ef4444', fillOpacity: 1, weight: 2 }}><Popup>{i.title} · {i.severity} · {i.status}</Popup></CircleMarker>)}
+      {layers.devices && devices.filter(d => valid(d.latitude, d.longitude)).map(d => <CircleMarker key={d.id} center={[d.latitude, d.longitude]} radius={6} pathOptions={{ color: 'white', fillColor: '#10b981', fillOpacity: 1, weight: 2 }}><Popup>Unit {d.deviceId}</Popup></CircleMarker>)}
+      {userLocation && <>
+        {userAccuracy != null && <Circle center={[userLocation.lat, userLocation.lng]} radius={userAccuracy} pathOptions={{ color: '#3b82f6', weight: 2, fillOpacity: 0.12 }} />}
+        <CircleMarker center={[userLocation.lat, userLocation.lng]} radius={8} pathOptions={{ color: 'white', fillColor: '#2563eb', fillOpacity: 1, weight: 3 }}><Popup>Your device location · accuracy ±{userAccuracy?.toFixed(0) ?? '?'} m</Popup></CircleMarker>
+      </>}
+    </MapContainer>
+    {tileError && <div role="alert" className="absolute top-36 right-3 z-20 rounded bg-rose-950 p-3 text-xs text-rose-200">Some map tiles could not load. Check your connection and retry.</div>}
+    <div className="absolute top-28 right-3 z-10 max-w-xs rounded bg-slate-950/85 p-2 text-[10px] text-amber-200 pointer-events-none">Configured boundaries · unverified for navigation{selectedBorder ? ` · ${selectedBorder.properties.boundary_name}` : ''}</div>
+  </div>;
 }

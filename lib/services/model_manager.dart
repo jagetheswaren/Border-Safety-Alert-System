@@ -112,6 +112,12 @@ class ModelManager extends ChangeNotifier {
 
   /// Inspects physical file presence and size integrity.
   Future<void> checkModelStatus() async {
+    if (kIsWeb) {
+      _state = ModelState.notInstalled;
+      _diagnostics = const ModelDiagnostics(status: 'BACKEND_INFERENCE', device: 'Web browser', engine: 'FastAPI gateway');
+      notifyListeners();
+      return;
+    }
     _state = ModelState.checking;
     notifyListeners();
 

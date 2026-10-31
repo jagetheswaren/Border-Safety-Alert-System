@@ -1,28 +1,10 @@
 "use client";
 
+import { parseZoneGeometry } from '../services/zoneGeometry';
+import { fetchWithAuth, getZones } from '@/lib/api';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { BorderFeatureCollection, BorderFeature, SafetyZoneFeature, SafetyZoneConfig, LatLngLiteral } from '../types/map.types';
 import { evaluateNearestBorder, DEFAULT_SAFETY_CONFIG } from '../services/maps.service';
-
-const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1').replace(/\/$/, '');
-
-interface RawZoneFeature {
-  id?: string;
-  properties?: {
-    id?: string;
-    name?: string;
-    zone_type?: string;
-    severity?: string;
-    safety_level?: string;
-    color?: string;
-    fillOpacity?: number;
-    warning_radius_m?: number;
-    description?: string;
-  };
-  geometry?: {
-    coordinates?: number[][][];
-  };
-}
 
 export function useBorders(userLocation: LatLngLiteral | null = null) {
   const [bordersCollection, setBordersCollection] = useState<BorderFeatureCollection | null>(null);
@@ -36,50 +18,13 @@ export function useBorders(userLocation: LatLngLiteral | null = null) {
     setIsLoading(true);
     setError(null);
     try {
-      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-      const headers: Record<string, string> = {};
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
-      // 1. Fetch borders from backend or local static fallback
-      let bordersData: BorderFeatureCollection | null = null;
-      try {
-        const res = await fetch(`${API_BASE}/borders/`, { headers, cache: 'no-store' });
-        if (res.ok) {
-          bordersData = await res.json();
-        }
-      } catch (e) {
-        console.warn('Backend borders endpoint not reachable, attempting static file...', e);
-      }
-
-      if (!bordersData) {
-        const staticRes = await fetch('/data/borders/borders.geojson');
-        if (staticRes.ok) {
-          bordersData = await staticRes.json();
-        }
-      }
-
-      // 2. Fetch zones
-      let zonesFeatures: SafetyZoneFeature[] = [];
-      try {
-        const zonesRes = await fetch('/data/borders/zones.geojson');
-        if (zonesRes.ok) {
-          const zonesJson = await zonesRes.json();
-          zonesFeatures = ((zonesJson.features as RawZoneFeature[]) || []).map((f) => ({
-            id: f.id || f.properties?.id || 'zone',
-            name: f.properties?.name || 'Safety Zone',
-            zone_type: (f.properties?.zone_type as SafetyZoneFeature['zone_type']) || 'WARNING',
-            severity: (f.properties?.severity as SafetyZoneFeature['severity']) || 'HIGH',
-            safety_level: f.properties?.safety_level,
-            color: f.properties?.color || '#f59e0b',
-            fillOpacity: f.properties?.fillOpacity || 0.25,
-            warning_radius_m: f.properties?.warning_radius_m || 500,
-            description: f.properties?.description,
-            coordinates: (f.geometry?.coordinates?.[0] || []).map((pt: number[]) => [pt[1], pt[0]]),
-          }));
-        }
-      } catch (e) {
-        console.warn('Zones dataset load error', e);
-      }
+      const bordersData = await (await fetchWithAuth('/borders/')).json() as BorderFeatureCollection;
+      const zones = await getZones();
+      const zonesFeatures: SafetyZoneFeature[] = zones.filter(z => z.enabled !== false).map(z => {
+        const geometry = parseZoneGeometry(z.geometry);
+        if (geometry.type !== 'Polygon' || !Array.isArray(geometry.coordinates?.[0])) throw new Error(`Invalid polygon for zone ${z.name}`);
+        return { id: String(z.id), name: z.name, zone_type: 'WARNING', severity: z.severity, color: '#f59e0b', fillOpacity: 0.25, warning_radius_m: z.warning_radius_m ?? 0, rings: geometry.coordinates.map(ring => ring.map(pt => [pt[1], pt[0]] as [number, number])), coordinates: geometry.coordinates[0].map((pt: number[]) => [pt[1], pt[0]] as [number, number]) };
+      });
 
       // 3. Fetch metadata
       try {

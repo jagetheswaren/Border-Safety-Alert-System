@@ -134,6 +134,13 @@ void main() {
 
     test('isDemo flags synthetic sources only', () {
       expect(_zone().isDemo, isTrue);
+      const bundledUnverified = BoundaryModel(
+        id: 'bsas-sample',
+        name: 'Bundled sample',
+        riskLevel: RiskLevel.low,
+        source: 'BSAS-OFFICIAL-SURVEY-v1.0',
+      );
+      expect(bundledUnverified.isDemo, isTrue);
       const real = BoundaryModel(
         id: 'x',
         name: 'X',

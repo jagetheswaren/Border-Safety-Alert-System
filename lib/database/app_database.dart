@@ -11,11 +11,13 @@ import 'package:sqflite/sqflite.dart';
 /// - Sync queue & offline-first reconciliation
 /// - Application settings & preferences
 /// - Subsystem diagnostics & audit logs
+/// - Emergency SOS contacts, events & delivery journal (BSAS 2.0)
+/// - Global GIS boundaries and forest intelligence features (BSAS 2.0)
 class AppDatabase {
   AppDatabase._(this.db);
 
   /// Current schema version.
-  static const version = 3;
+  static const version = 4;
 
   // Table names
   static const tableBoundaries = 'boundaries';
@@ -26,6 +28,10 @@ class AppDatabase {
   static const tableSyncQueue = 'sync_queue';
   static const tableAppSettings = 'app_settings';
   static const tableAuditDiagnostics = 'audit_diagnostics';
+  static const tableEmergencyContacts = 'emergency_contacts';
+  static const tableSosEvents = 'sos_events';
+  static const tableSosDeliveries = 'sos_deliveries';
+  static const tableGisFeatures = 'gis_features';
 
   // DDL definitions
   static const createBoundaries = '''
@@ -129,6 +135,60 @@ CREATE TABLE IF NOT EXISTS audit_diagnostics (
   level TEXT NOT NULL DEFAULT 'INFO'
 )''';
 
+  static const createEmergencyContacts = '''
+CREATE TABLE IF NOT EXISTS emergency_contacts (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  phone_number TEXT NOT NULL,
+  relationship TEXT,
+  whatsapp_enabled INTEGER NOT NULL DEFAULT 1,
+  is_active INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL
+)''';
+
+  static const createSosEvents = '''
+CREATE TABLE IF NOT EXISTS sos_events (
+  id TEXT PRIMARY KEY,
+  event_uuid TEXT NOT NULL,
+  status TEXT NOT NULL,
+  latitude REAL,
+  longitude REAL,
+  accuracy REAL,
+  location_source TEXT NOT NULL,
+  message TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  cancelled_at TEXT
+)''';
+
+  static const createSosDeliveries = '''
+CREATE TABLE IF NOT EXISTS sos_deliveries (
+  id TEXT PRIMARY KEY,
+  event_id TEXT NOT NULL,
+  contact_id TEXT NOT NULL,
+  contact_name TEXT NOT NULL,
+  phone_number TEXT NOT NULL,
+  channel TEXT NOT NULL,
+  status TEXT NOT NULL,
+  attempt_count INTEGER NOT NULL DEFAULT 1,
+  last_attempt_at TEXT NOT NULL,
+  error_message TEXT
+)''';
+
+  static const createGisFeatures = '''
+CREATE TABLE IF NOT EXISTS gis_features (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  category TEXT NOT NULL,
+  source_name TEXT NOT NULL,
+  source_url TEXT,
+  license TEXT,
+  version TEXT,
+  publication_date TEXT,
+  polygon_geojson TEXT NOT NULL,
+  is_verified INTEGER NOT NULL DEFAULT 1,
+  cached_at TEXT NOT NULL
+)''';
+
   static const createIndexes = [
     'CREATE INDEX IF NOT EXISTS idx_safety_events_timestamp ON safety_events(timestamp DESC)',
     'CREATE INDEX IF NOT EXISTS idx_safety_events_synced ON safety_events(synced)',
@@ -136,6 +196,10 @@ CREATE TABLE IF NOT EXISTS audit_diagnostics (
     'CREATE INDEX IF NOT EXISTS idx_location_history_timestamp ON location_history(timestamp DESC)',
     'CREATE INDEX IF NOT EXISTS idx_sync_queue_status ON sync_queue(status)',
     'CREATE INDEX IF NOT EXISTS idx_audit_timestamp ON audit_diagnostics(timestamp DESC)',
+    'CREATE INDEX IF NOT EXISTS idx_emergency_contacts_active ON emergency_contacts(is_active)',
+    'CREATE INDEX IF NOT EXISTS idx_sos_events_created ON sos_events(created_at DESC)',
+    'CREATE INDEX IF NOT EXISTS idx_sos_deliveries_event ON sos_deliveries(event_id)',
+    'CREATE INDEX IF NOT EXISTS idx_gis_features_category ON gis_features(category)',
   ];
 
   final Database db;
@@ -149,6 +213,10 @@ CREATE TABLE IF NOT EXISTS audit_diagnostics (
     await db.execute(createSyncQueue);
     await db.execute(createAppSettings);
     await db.execute(createAuditDiagnostics);
+    await db.execute(createEmergencyContacts);
+    await db.execute(createSosEvents);
+    await db.execute(createSosDeliveries);
+    await db.execute(createGisFeatures);
     for (final sql in createIndexes) {
       await db.execute(sql);
     }
@@ -162,7 +230,13 @@ CREATE TABLE IF NOT EXISTS audit_diagnostics (
       path,
       options: OpenDatabaseOptions(
         version: version,
-        singleInstance: false,
+        singleInstance: true,
+        onConfigure: (db) async {
+          try {
+            await db.execute('PRAGMA journal_mode = WAL');
+            await db.execute('PRAGMA busy_timeout = 5000');
+          } catch (_) {}
+        },
         onCreate: (db, _) => _createAllTables(db),
         onUpgrade: (db, oldVersion, newVersion) async {
           if (oldVersion < 2) {
@@ -170,6 +244,15 @@ CREATE TABLE IF NOT EXISTS audit_diagnostics (
           }
           if (oldVersion == 2) {
             await db.execute('ALTER TABLE sync_queue ADD COLUMN next_retry_at TEXT');
+          }
+          if (oldVersion < 4) {
+            await db.execute(createEmergencyContacts);
+            await db.execute(createSosEvents);
+            await db.execute(createSosDeliveries);
+            await db.execute(createGisFeatures);
+            for (final sql in createIndexes) {
+              await db.execute(sql);
+            }
           }
         },
       ),

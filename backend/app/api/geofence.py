@@ -6,6 +6,9 @@ from app.dependencies import get_db
 from app.api.auth import get_current_user
 from app.database import is_postgres
 from app.models.zone import Zone
+from app.models.alert import Alert
+from app.models.user import User
+from datetime import datetime, timezone, timedelta
 from app.geometry import parse_polygon, local_test_distance
 
 router = APIRouter(dependencies=[Depends(get_current_user)])
@@ -15,10 +18,18 @@ class GeofenceCheckRequest(BaseModel):
     latitude: float = Field(ge=-90, le=90, allow_inf_nan=False)
     longitude: float = Field(ge=-180, le=180, allow_inf_nan=False)
     device_id: str | None = None
+    record_alert: bool = False
+    accuracy_m: float | None = Field(default=None, ge=0, allow_inf_nan=False)
 
 
 @router.post('/check')
-def check_geofence(req: GeofenceCheckRequest, db: Session = Depends(get_db)):
+def check_geofence(req: GeofenceCheckRequest, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    if req.record_alert and user.role.upper() not in ('ADMIN', 'OPERATOR'):
+        raise HTTPException(403, 'Only operators may record warnings in operator alert history')
+    if req.accuracy_m is not None and req.accuracy_m > 200:
+        return dict(risk='UNKNOWN', inside_restricted_zone=None, nearest_zone_id=None,
+                    distance_m=None, warning_distance_m=None, predicted_crossing=None,
+                    reason='Reported location accuracy exceeds 200 m; obtain a better fix')
     if is_postgres:
         rows = db.execute(text('''
             SELECT id, warning_radius_m,
@@ -45,6 +56,24 @@ def check_geofence(req: GeofenceCheckRequest, db: Session = Depends(get_db)):
     nearest = rows[0]
     warning = nearest['warning_radius_m'] or 0.0
     risk = 'CRITICAL' if nearest['inside'] else 'WARNING' if nearest['distance'] <= warning else 'SAFE'
+    alert_id = None
+    if req.record_alert and risk in ('WARNING', 'CRITICAL'):
+        # Explicit opt-in only. Classification is computed above, never accepted from the client.
+        existing = db.query(Alert).filter(
+            Alert.user_id == user.id, Alert.zone_id == nearest['id'],
+            Alert.type == 'GEOFENCE_BREACH', Alert.severity == risk,
+            Alert.created_at >= datetime.now(timezone.utc) - timedelta(seconds=60),
+        ).first()
+        if existing is None:
+            existing = Alert(type='GEOFENCE_BREACH', severity=risk,
+                             title=f'{risk}: configured safety-zone proximity',
+                             message=f'Backend geofence check: {nearest["distance"]:.0f} m from configured zone. Boundary provenance must be verified.',
+                             user_id=user.id, zone_id=nearest['id'],
+                             location_lat=req.latitude, location_lng=req.longitude)
+            db.add(existing)
+            db.commit()
+            db.refresh(existing)
+        alert_id = existing.id
     return dict(risk=risk, inside_restricted_zone=bool(nearest['inside']),
                 nearest_zone_id=nearest['id'], distance_m=nearest['distance'],
-                warning_distance_m=warning, predicted_crossing=None)
+                warning_distance_m=warning, predicted_crossing=None, alert_id=alert_id)

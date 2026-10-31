@@ -21,6 +21,7 @@ const BSASMap = dynamic(
 );
 
 export default function LiveMapPage() {
+  const [refreshRevision, setRefreshRevision] = useState(0);
   const [zones, setZones] = useState<Zone[]>([]);
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
@@ -32,9 +33,9 @@ export default function LiveMapPage() {
     setError(null);
     try {
       const [zonesData, incidentsRes, alertsRes] = await Promise.all([
-        getZones().catch(() => []),
-        getIncidents({ limit: 50 }).catch(() => ({ items: [], total: 0, page: 1, size: 50 })),
-        getAlerts({ limit: 50 }).catch(() => ({ items: [], total: 0, page: 1, size: 50 })),
+        getZones(),
+        getIncidents({ limit: 50 }),
+        getAlerts({ limit: 50 }),
       ]);
 
       setZones(zonesData);
@@ -53,9 +54,9 @@ export default function LiveMapPage() {
     (async () => {
       try {
         const [zonesData, incidentsRes, alertsRes] = await Promise.all([
-          getZones().catch(() => []),
-          getIncidents({ limit: 50 }).catch(() => ({ items: [], total: 0, page: 1, size: 50 })),
-          getAlerts({ limit: 50 }).catch(() => ({ items: [], total: 0, page: 1, size: 50 })),
+          getZones(),
+          getIncidents({ limit: 50 }),
+          getAlerts({ limit: 50 }),
         ]);
         if (isMounted) {
           setZones(zonesData);
@@ -85,7 +86,7 @@ export default function LiveMapPage() {
             Live Operations Spatial Map
           </h1>
           <span className="text-[11px] text-slate-400 font-mono hidden md:inline">
-            · Google Maps Vector Basemap & True Offline MapLibre Engine
+            · Street and satellite maps · configured safety boundaries
           </span>
         </div>
 
@@ -109,7 +110,7 @@ export default function LiveMapPage() {
 
           <button
             type="button"
-            onClick={loadMapData}
+            onClick={() => { void loadMapData(); setRefreshRevision(r => r + 1); }}
             disabled={isLoading}
             className="flex items-center text-xs bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700/80 rounded-xl px-3 py-1 transition-colors disabled:opacity-50"
           >
@@ -122,14 +123,14 @@ export default function LiveMapPage() {
       </div>
 
       {/* 90% Viewport Map Canvas */}
-      <div className="flex-1 rounded-2xl border border-slate-800 bg-slate-900 overflow-hidden relative shadow-2xl">
+      <div className="flex-1 min-h-[400px] rounded-2xl border border-slate-800 bg-slate-900 overflow-hidden relative shadow-2xl">
         {error && (
           <div className="absolute top-3 left-1/2 -translate-x-1/2 z-50 bg-rose-950/90 border border-rose-800 text-rose-300 px-4 py-2 rounded-xl text-xs flex items-center space-x-2 shadow-2xl backdrop-blur-md">
             <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
             <span>{error}</span>
           </div>
         )}
-        <BSASMap />
+        <BSASMap refreshRevision={refreshRevision} />
       </div>
     </div>
   );

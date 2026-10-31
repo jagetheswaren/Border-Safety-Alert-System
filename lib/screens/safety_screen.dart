@@ -6,11 +6,14 @@ import '../core/theme/bsas_typography.dart';
 
 import '../models/boundary_model.dart';
 import '../models/gps_snapshot.dart';
+import '../models/location_model.dart';
 import '../models/geofence_result.dart';
 import '../models/geofence_state.dart';
 import 'route_screen.dart';
 import 'map_screen.dart';
 import '../services/boundary_summary.dart';
+import '../services/sos_service.dart';
+import 'sos_screen.dart';
 
 /// Redesigned comprehensive Safety Status screen.
 ///
@@ -32,8 +35,19 @@ class SafetyScreen extends StatelessWidget {
     final isDark = theme.brightness == Brightness.dark;
 
     final live = gps ?? GpsSnapshot.initial();
+    final gpsAvailable = live.location != null &&
+        LocationModel.isValidLatitude(live.location!.latitude) &&
+        LocationModel.isValidLongitude(live.location!.longitude);
     final state = geoFence.state;
-    final stateStr = state.name.toUpperCase();
+    final stateStr = switch (state) {
+      GeoFenceState.safe => 'SAFE',
+      GeoFenceState.caution => 'CAUTION',
+      GeoFenceState.warning => 'WARNING',
+      GeoFenceState.critical => 'CRITICAL',
+      GeoFenceState.insideRestrictedArea => 'INSIDE RESTRICTED AREA',
+      GeoFenceState.gpsUnavailable => 'GPS UNAVAILABLE',
+      GeoFenceState.unknown => 'UNKNOWN',
+    };
 
     final isCritical = state == GeoFenceState.critical || state == GeoFenceState.insideRestrictedArea;
     final isWarning = state == GeoFenceState.warning || state == GeoFenceState.caution;
@@ -70,12 +84,84 @@ class SafetyScreen extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // 1. Signature Hero Status Dial
-            _buildStatusDial(stateStr, stateColor, stateIcon, isCritical, isWarning, state, isDark),
+            _buildStatusDial(stateStr, stateColor, stateIcon, isCritical, isWarning, state, gpsAvailable, isDark),
             const SizedBox(height: BsasSpacing.xl),
 
             // 2. Action Guidance Banner
-            _buildGuidanceBanner(stateColor, isCritical, isWarning, isDark),
-            const SizedBox(height: BsasSpacing.xl),
+            _buildGuidanceBanner(stateColor, isCritical, isWarning, state, isDark),
+            const SizedBox(height: BsasSpacing.lg),
+
+            // ONE-TAP SOS ACTION BANNER
+            Container(
+              margin: const EdgeInsets.only(bottom: BsasSpacing.md),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF3B0A12), Color(0xFF1E0A0E)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: BsasColors.criticalRed.withValues(alpha: 0.7), width: 1.5),
+              ),
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(16),
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => SosScreen(
+                          sosService: SosService(),
+                          gps: live,
+                        ),
+                      ),
+                    );
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 40,
+                          height: 40,
+                          decoration: const BoxDecoration(
+                            color: BsasColors.criticalRed,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.sos_rounded, color: Colors.white, size: 24),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'EMERGENCY SOS ASSISTANCE',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 1.0,
+                                ),
+                              ),
+                              Text(
+                                'Dispatch live coordinates via SMS & WhatsApp to all contacts',
+                                style: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.7),
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const Icon(Icons.arrow_forward_ios_rounded, color: BsasColors.criticalRed, size: 14),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: BsasSpacing.sm),
             
             Text(
               'TELEMETRY READINGS',
@@ -86,7 +172,7 @@ class SafetyScreen extends StatelessWidget {
             const SizedBox(height: BsasSpacing.sm),
 
             // 3. Structured Telemetry Cards
-            _buildMetricsGrid(boundary, distance, live, stateColor, isCritical, isWarning, isDark),
+            _buildMetricsGrid(boundary, distance, live, stateColor, isCritical, isWarning, state, isDark),
             const SizedBox(height: BsasSpacing.xxl),
 
             // 4. Action Buttons
@@ -112,7 +198,7 @@ class SafetyScreen extends StatelessWidget {
                 );
               },
               icon: const Icon(Icons.alt_route_rounded, size: 22),
-              label: Text('CALCULATE SAFE ROUTE', style: BsasTypography.label),
+              label: Text('OPEN ROUTE PREVIEW', style: BsasTypography.label),
             ),
             const SizedBox(height: BsasSpacing.md),
             OutlinedButton.icon(
@@ -152,6 +238,7 @@ class SafetyScreen extends StatelessWidget {
     bool isCritical,
     bool isWarning,
     GeoFenceState state,
+    bool gpsAvailable,
     bool isDark,
   ) {
     return Container(
@@ -240,8 +327,12 @@ class SafetyScreen extends StatelessWidget {
                 : (isWarning
                     ? 'Approaching monitored area'
                     : (state == GeoFenceState.safe
-                        ? 'Authorized safe zone'
-                        : 'Acquiring satellite fix...')),
+                        ? 'No configured hazard detected'
+                        : state == GeoFenceState.unknown && gpsAvailable
+                            ? 'GPS active · boundary data unverified'
+                            : state == GeoFenceState.gpsUnavailable
+                                ? 'Waiting for a fresh GPS fix'
+                                : 'Safety status unavailable')),
             style: BsasTypography.body.copyWith(
               fontSize: 14,
               color: isDark ? BsasColors.textLightSecondary : BsasColors.textDarkSecondary,
@@ -253,7 +344,7 @@ class SafetyScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildGuidanceBanner(Color stateColor, bool isCritical, bool isWarning, bool isDark) {
+  Widget _buildGuidanceBanner(Color stateColor, bool isCritical, bool isWarning, GeoFenceState state, bool isDark) {
     return Container(
       padding: const EdgeInsets.all(BsasSpacing.md),
       decoration: BoxDecoration(
@@ -283,7 +374,11 @@ class SafetyScreen extends StatelessWidget {
                       ? 'Boundary breach detected. Reverse heading immediately along the recommended safe corridor.'
                       : (isWarning
                           ? 'You are approaching a monitored boundary. Stay alert and prepare to alter course if necessary.'
-                          : 'No immediate action required. Maintain normal operations.'),
+                          : state == GeoFenceState.unknown
+                              ? 'Boundary data is unverified. Safety status cannot be assessed from this map.'
+                              : state == GeoFenceState.gpsUnavailable
+                                  ? 'Waiting for a fresh GPS position. Safety status is unavailable.'
+                                  : 'No configured hazard detected. Follow local safety guidance.'),
                   style: BsasTypography.body.copyWith(
                     fontSize: 13.5,
                     height: 1.4,
@@ -305,6 +400,7 @@ class SafetyScreen extends StatelessWidget {
     Color stateColor, 
     bool isCritical, 
     bool isWarning, 
+    GeoFenceState state,
     bool isDark
   ) {
     return Column(
@@ -324,7 +420,7 @@ class SafetyScreen extends StatelessWidget {
             Expanded(
               child: _buildMetricCard(
                 'Risk Level',
-                isCritical ? 'Critical' : (isWarning ? 'Moderate' : 'Low'),
+                isCritical ? 'Critical' : (isWarning ? 'Moderate' : state == GeoFenceState.safe ? 'Low' : 'Unknown'),
                 Icons.warning_amber_rounded,
                 highlightColor: stateColor,
                 isDark: isDark,

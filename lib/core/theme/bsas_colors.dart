@@ -80,6 +80,9 @@ class BsasColors {
   static const Color accentNavy = darkBackground;
   static const Color surfaceDark = darkSurface;
   static const Color cardDark = darkCard;
+  static const Color dangerRed = criticalRed;
+  static const Color darkBg = darkBackground;
+  static const Color warningYellow = cautionYellow;
 
   /// Resolves the primary semantic color for a safety state string.
   static Color forSafetyState(String state) {

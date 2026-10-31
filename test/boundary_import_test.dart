@@ -19,6 +19,13 @@ const _valid = '''
 
 void main() {
   group('parseBoundariesFromGeoJson', () {
+    test('imports official MultiPolygon outer rings', () {
+      const multi = '''{"type":"FeatureCollection","features":[{"type":"Feature","properties":{"name":"Two parts","type":"village","risk_level":"low"},"geometry":{"type":"MultiPolygon","coordinates":[[[[1,1],[2,1],[2,2],[1,1]]],[[[3,3],[4,3],[4,4],[3,3]]]]}}]}''';
+      final parsed = parseBoundariesFromGeoJson(multi);
+      expect(parsed.single.polygon, hasLength(2));
+      expect(parsed.single.polygon.last.first.longitude, 3);
+    });
+
     test('parses the demo FeatureCollection', () {
       final boundaries = parseBoundariesFromGeoJson(_valid);
 

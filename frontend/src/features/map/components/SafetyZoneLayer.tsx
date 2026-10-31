@@ -26,8 +26,8 @@ export function SafetyZoneLayer({ zones, visible, onSelectZone }: SafetyZoneLaye
     const createdPolygons: google.maps.Polygon[] = [];
 
     zones.forEach((zone) => {
-      const paths = zone.coordinates.map((pt) => ({ lat: pt[0], lng: pt[1] }));
-      if (paths.length < 3) return;
+      const paths = (zone.rings ?? [zone.coordinates]).map(ring => ring.map(pt => ({ lat: pt[0], lng: pt[1] })));
+      if ((paths[0]?.length ?? 0) < 3) return;
 
       const color = zone.color || '#3b82f6';
 

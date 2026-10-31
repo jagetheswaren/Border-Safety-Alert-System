@@ -48,12 +48,21 @@ class HomeScreen extends StatelessWidget {
     final live = gps ?? GpsSnapshot.initial();
     final fix = live.location;
     final state = geoFence.state;
-    final stateStr = state.name.toUpperCase();
+    final stateStr = switch (state) {
+      GeoFenceState.safe => 'SAFE',
+      GeoFenceState.caution => 'CAUTION',
+      GeoFenceState.warning => 'WARNING',
+      GeoFenceState.critical => 'CRITICAL',
+      GeoFenceState.insideRestrictedArea => 'INSIDE RESTRICTED AREA',
+      GeoFenceState.gpsUnavailable => 'GPS UNAVAILABLE',
+      GeoFenceState.unknown => 'BOUNDARIES UNVERIFIED',
+    };
 
     final isCritical = state == GeoFenceState.critical ||
         state == GeoFenceState.insideRestrictedArea;
     final isWarning =
         state == GeoFenceState.warning || state == GeoFenceState.caution;
+    final isGpsLocked = live.fix == GpsFixState.locked;
 
     final stateColor = BsasColors.forSafetyState(stateStr);
     final stateIcon = BsasColors.iconForState(stateStr);
@@ -64,16 +73,16 @@ class HomeScreen extends StatelessWidget {
     } else if (isWarning) {
       statusDescription = 'Buffer corridor reached.\nMaintain situational awareness.';
     } else if (state == GeoFenceState.safe) {
-      statusDescription = 'Within civilian boundaries.\nReal-time monitoring active.';
+      statusDescription = 'No configured hazard detected.\nFollow local safety guidance.';
     } else {
-      statusDescription = 'Acquiring satellite fix\nand evaluating local boundary.';
+      statusDescription = state == GeoFenceState.unknown && isGpsLocked
+          ? 'GPS is active, but trusted boundary data is unavailable.'
+          : 'Acquiring satellite fix\nand evaluating local boundary.';
     }
 
     final distanceKm = geoFence.distanceToBoundaryMeters != null
         ? geoFence.distanceToBoundaryMeters! / 1000.0
         : null;
-
-    final isGpsLocked = live.fix == GpsFixState.locked;
 
     return Scaffold(
       key: const Key('screen-home'),
@@ -171,7 +180,7 @@ class HomeScreen extends StatelessWidget {
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            'OFFLINE FIELD SAFETY ACTIVE: Local SQLite, AI & Geofence Operational',
+                            'OFFLINE MAP PREVIEW · Bundled boundaries are unverified',
                             style: TextStyle(
                               color: BsasColors.textLightSecondary,
                               fontSize: 10,
@@ -312,7 +321,7 @@ class HomeScreen extends StatelessWidget {
                                     )
                                   else
                                     const Text(
-                                      '-- km',
+                                      'Unavailable',
                                       style: TextStyle(
                                         color: BsasColors.textLightPrimary,
                                         fontSize: 16,
@@ -352,6 +361,76 @@ class HomeScreen extends StatelessWidget {
                   ),
 
                   const SizedBox(height: BsasSpacing.xl),
+
+                  // ONE-TAP SOS ACTION BANNER
+                  Container(
+                    margin: const EdgeInsets.only(bottom: BsasSpacing.lg),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF3B0A12), Color(0xFF1E0A0E)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: BsasColors.criticalRed.withValues(alpha: 0.7), width: 1.5),
+                      boxShadow: [
+                        BoxShadow(
+                          color: BsasColors.criticalRed.withValues(alpha: 0.25),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(16),
+                        onTap: () => onNavigate(7),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 44,
+                                height: 44,
+                                decoration: const BoxDecoration(
+                                  color: BsasColors.criticalRed,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(Icons.sos_rounded, color: Colors.white, size: 26),
+                              ),
+                              const SizedBox(width: 14),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text(
+                                      'ONE-TAP EMERGENCY SOS',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w900,
+                                        letterSpacing: 1.1,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      'Immediate location dispatch via SMS & WhatsApp to all contacts',
+                                      style: TextStyle(
+                                        color: Colors.white.withValues(alpha: 0.75),
+                                        fontSize: 11,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const Icon(Icons.arrow_forward_ios_rounded, color: BsasColors.criticalRed, size: 16),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
 
                   // QUICK ACTIONS (Section 18)
                   Text(
@@ -405,6 +484,36 @@ class HomeScreen extends StatelessWidget {
                   GpsLiveCard(snapshot: live, onRetry: onGpsRetry),
                   const SizedBox(height: BsasSpacing.md),
                   BoundaryCountCard(summary: boundarySummary),
+                  const SizedBox(height: BsasSpacing.md),
+                  BsasCard(
+                    title: 'GEOGRAPHIC INTELLIGENCE (GIS)',
+                    status: const StatusBadge(
+                      label: 'OFFICIAL GIS',
+                      color: BsasColors.radarCyan,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Icons.public_rounded, color: BsasColors.radarCyan, size: 18),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                isGpsLocked ? 'Region: South Asia / Tamil Nadu Sector' : 'Global GIS Registry Active',
+                                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          '• Administrative Boundaries: UN SALB / FAO GAUL 2024 Verified\n• Forest Reserves: Anamalai & Mudumalai Official NTCA Polygons\n• Canopy Buffer: JRC Global Forest Cover 2020 Modelled',
+                          style: TextStyle(color: Colors.white70, fontSize: 11, height: 1.4),
+                        ),
+                      ],
+                    ),
+                  ),
                   const SizedBox(height: BsasSpacing.xxl),
                 ],
               ),

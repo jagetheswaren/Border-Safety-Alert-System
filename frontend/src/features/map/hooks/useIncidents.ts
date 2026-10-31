@@ -1,9 +1,10 @@
 "use client";
 
+import { fetchWithAuth } from '@/lib/api';
 import { useState, useEffect, useCallback } from 'react';
 import { IncidentMarkerItem, DeviceMarkerItem } from '../types/map.types';
 
-const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1').replace(/\/$/, '');
+
 
 interface RawIncident {
   id: string;
@@ -39,14 +40,10 @@ export function useIncidents(pollIntervalMs: number = 30000) {
 
   const loadOperationalData = useCallback(async () => {
     try {
-      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-      const headers: Record<string, string> = {};
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
       // 1. Fetch Incidents
       let items: IncidentMarkerItem[] = [];
       try {
-        const res = await fetch(`${API_BASE}/incidents/?limit=100`, { headers, cache: 'no-store' });
+        const res = await fetchWithAuth('/incidents/?limit=100');
         if (res.ok) {
           const data = await res.json();
           items = ((data.items as RawIncident[]) || []).map((inc) => ({
@@ -65,13 +62,13 @@ export function useIncidents(pollIntervalMs: number = 30000) {
           }));
         }
       } catch (e) {
-        console.warn('Could not fetch incidents from backend', e);
+        throw e;
       }
 
       // 2. Fetch Latest Device Breadcrumbs
       const deviceItems: DeviceMarkerItem[] = [];
       try {
-        const devRes = await fetch(`${API_BASE}/locations/latest?limit=50`, { headers, cache: 'no-store' });
+        const devRes = await fetchWithAuth('/locations/latest?limit=50');
         if (devRes.ok) {
           const devData = (await devRes.json()) as RawLocationItem[];
           // Filter latest per device
@@ -94,7 +91,7 @@ export function useIncidents(pollIntervalMs: number = 30000) {
           }
         }
       } catch (e) {
-        console.warn('Could not fetch device locations from backend', e);
+        throw e;
       }
 
       setIncidents(items);

@@ -11,6 +11,42 @@ Future<void> _flush() => Future<void>.delayed(const Duration(milliseconds: 20));
 
 void main() {
   group('GpsService', () {
+    test('marks a silent GPS stream stale after 30 seconds', () async {
+      var now = DateTime.now();
+      final provider = FakeLocationProvider(current: FakeLocationProvider.fix(
+        latitude: 10, longitude: 78, timestamp: now,
+      ));
+      final service = GpsService(provider: provider, now: () => now);
+      addTearDown(service.dispose);
+      await service.start();
+      expect(service.snapshot.stale, isFalse);
+      now = now.add(const Duration(seconds: 36));
+      await Future<void>.delayed(const Duration(milliseconds: 5100));
+      expect(service.snapshot.stale, isTrue);
+      expect(service.snapshot.message, contains('out of date'));
+      provider.addPosition(FakeLocationProvider.fix(
+        latitude: 10.1, longitude: 78, timestamp: now,
+      ));
+      await _flush();
+      expect(service.snapshot.stale, isFalse);
+      await service.stop();
+    });
+
+    test('retry cancels old stream even when permission is revoked', () async {
+      final provider = FakeLocationProvider(current: FakeLocationProvider.fix(
+        latitude: 10, longitude: 78,
+      ));
+      final service = GpsService(provider: provider);
+      addTearDown(service.dispose);
+      await service.start();
+      provider.checkResult = LocationPermission.deniedForever;
+      await service.start();
+      provider.addPosition(FakeLocationProvider.fix(latitude: 11, longitude: 79));
+      await _flush();
+      expect(service.snapshot.permission, LocationPermissionState.deniedForever);
+      expect(service.snapshot.location, isNull);
+    });
+
     test('locks with the current fix when granted', () async {
       final provider = FakeLocationProvider(
         current: FakeLocationProvider.fix(latitude: 10.1, longitude: 78.1),

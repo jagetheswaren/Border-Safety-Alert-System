@@ -144,3 +144,65 @@ class _SpotlightPainter extends CustomPainter {
   bool shouldRepaint(covariant _SpotlightPainter oldDelegate) =>
       oldDelegate.position != position || oldDelegate.color != color;
 }
+
+class BsasCard extends StatelessWidget {
+  const BsasCard({
+    super.key,
+    required this.child,
+    this.title,
+    this.status,
+    this.onTap,
+    this.padding = const EdgeInsets.all(16.0),
+    this.margin = EdgeInsets.zero,
+    this.borderColor,
+    this.backgroundColor,
+  });
+
+  final Widget child;
+  final String? title;
+  final Widget? status;
+  final VoidCallback? onTap;
+  final EdgeInsetsGeometry padding;
+  final EdgeInsetsGeometry margin;
+  final Color? borderColor;
+  final Color? backgroundColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return BSASCard(
+      onTap: onTap,
+      padding: padding,
+      margin: margin,
+      borderColor: borderColor,
+      backgroundColor: backgroundColor,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (title != null || status != null) ...[
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                if (title != null)
+                  Expanded(
+                    child: Text(
+                      title!,
+                      style: const TextStyle(
+                        color: BsasColors.radarCyan,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                  ),
+                ?status,
+              ],
+            ),
+            const SizedBox(height: 12),
+          ],
+          child,
+        ],
+      ),
+    );
+  }
+}

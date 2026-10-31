@@ -22,12 +22,14 @@ class AlertsScreen extends StatefulWidget {
     this.eventStore,
     this.onViewOnMap,
     this.onSafeRoute,
+    this.monitoringUnavailableReason,
   });
 
   final AlertService alertService;
   final LocalEventStore? eventStore;
   final VoidCallback? onViewOnMap;
   final VoidCallback? onSafeRoute;
+  final String? monitoringUnavailableReason;
 
   @override
   State<AlertsScreen> createState() => _AlertsScreenState();
@@ -58,6 +60,9 @@ class _AlertsScreenState extends State<AlertsScreen> {
       }
       return true;
     }).toList();
+    final unavailableReason = _selectedFilterIndex == 0
+        ? widget.monitoringUnavailableReason
+        : null;
 
     return Scaffold(
       key: const Key('screen-history'), // Preserves test key compatibility
@@ -81,7 +86,7 @@ class _AlertsScreenState extends State<AlertsScreen> {
               children: [
                 Icon(
                   Icons.notifications_active_outlined,
-                  color: allHistory.isNotEmpty
+                  color: unavailableReason != null || allHistory.isNotEmpty
                       ? BsasColors.warningOrange
                       : BsasColors.safeGreen,
                   size: 20,
@@ -132,11 +137,15 @@ class _AlertsScreenState extends State<AlertsScreen> {
             SliverFillRemaining(
               hasScrollBody: false,
               child: BSASEmptyState(
-                title: 'NO ACTIVE ALERTS',
+                title: unavailableReason == null
+                    ? 'NO ACTIVE ALERTS'
+                    : 'MONITORING UNAVAILABLE',
                 description: _selectedFilterIndex == 0
-                    ? 'All monitored perimeters report safe civilian transit status.\nReal-time sensors are operational.'
+                    ? unavailableReason ?? 'Monitoring is active. No alert threshold is currently triggered.'
                     : 'No active threats matching ${_filters[_selectedFilterIndex]} severity filter.',
-                icon: Icons.verified_user_outlined,
+                icon: unavailableReason == null
+                    ? Icons.verified_user_outlined
+                    : Icons.location_searching_outlined,
                 actionLabel: 'VIEW EVENT LOGS',
                 onAction: () {
                   Navigator.of(context).push(

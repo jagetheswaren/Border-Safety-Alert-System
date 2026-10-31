@@ -160,6 +160,23 @@ async def _call_ollama_api(host: str, system_context: str, user_message: str) ->
         pass
     return None
 
+async def _call_local_api(system_context: str, user_message: str) -> Optional[str]:
+    base = os.getenv("LOCAL_AI_BASE_URL", "http://127.0.0.1:1234/v1").rstrip("/")
+    compact_context = "\n".join(line for line in system_context.splitlines() if line.startswith(("Coordinates:", "No live", "Configured Safety", "- ")))[:1200]
+    try:
+        async with httpx.AsyncClient(timeout=170.0) as client:
+            res = await client.post(f"{base}/chat/completions", json={
+                "model": os.getenv("LOCAL_AI_MODEL", "bsas-local"),
+                "messages": [{"role": "system", "content": "You are BSAS, a border safety advisory assistant. Never invent GPS, incidents or official boundaries. Never infer SAFE without GPS. Keep answers under 50 words. Configured records are not verified official boundaries.\n" + compact_context}, {"role": "user", "content": user_message}],
+                "max_tokens": 128, "temperature": 0.4,
+                "chat_template_kwargs": {"enable_thinking": False}
+            })
+            if res.status_code == 200:
+                return res.json()["choices"][0]["message"]["content"].strip()
+    except (httpx.HTTPError, KeyError, IndexError, ValueError):
+        logger.warning("Local AI model unavailable")
+    return None
+
 def _generate_rule_grounded_response(db: Session, message: str, telemetry: Optional[Dict[str, Any]]) -> str:
     """
     Authoritative fallback response grounded in verified database state
@@ -191,8 +208,8 @@ def _generate_rule_grounded_response(db: Session, message: str, telemetry: Optio
         if telemetry and telemetry.get("latitude") and telemetry.get("longitude"):
             lat = telemetry.get("latitude")
             lon = telemetry.get("longitude")
-            risk = telemetry.get("risk_state", "SAFE")
-            zone = telemetry.get("zone_state", "SAFE")
+            risk = telemetry.get("risk_state", "UNKNOWN")
+            zone = telemetry.get("zone_state", "UNKNOWN")
             return (
                 f"Authoritative telemetry reports your position at {lat:.5f}°, {lon:.5f}°.\n"
                 f"Current Risk Engine State: {risk}\n"
@@ -249,6 +266,11 @@ async def chat_with_ai(
         if reply:
             return AIChatResponse(reply=reply, provider="openai", source="ai", success=True)
 
+    # Local OpenAI-compatible model server (no paid credentials required).
+    reply = await _call_local_api(system_context, req.message)
+    if reply:
+        return AIChatResponse(reply=reply, provider="local-qwen3.5-4b", source="ai", success=True)
+
     # 3. Check Ollama
     ollama_host = os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434")
     reply = await _call_ollama_api(ollama_host, system_context, req.message)
@@ -260,6 +282,6 @@ async def chat_with_ai(
     return AIChatResponse(
         reply=fallback_reply,
         provider="bsas-safety-engine",
-        source="ai",
-        success=True
+        source="database",
+        success=False
     )

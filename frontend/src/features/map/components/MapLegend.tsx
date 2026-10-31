@@ -7,7 +7,7 @@ export function MapLegend() {
   const [collapsed, setCollapsed] = useState(false);
 
   return (
-    <div className="absolute bottom-6 right-6 z-20 bg-gray-900/95 backdrop-blur-md border border-gray-800 text-white rounded-xl shadow-2xl p-3 text-xs w-64 select-none transition-all">
+    <div className="absolute bottom-6 right-6 hidden md:block z-20 bg-gray-900/95 backdrop-blur-md border border-gray-800 text-white rounded-xl shadow-2xl p-3 text-xs w-64 select-none transition-all">
       <div
         className="flex items-center justify-between cursor-pointer font-semibold text-gray-200 pb-1"
         onClick={() => setCollapsed(!collapsed)}
@@ -40,15 +40,15 @@ export function MapLegend() {
           </div>
           <div className="flex items-center space-x-2">
             <span className="w-3 h-3 rounded bg-blue-500/30 border border-blue-500" />
-            <span>Awareness Zone (2000m)</span>
+            <span>Configured Zone Overlay</span>
           </div>
           <div className="flex items-center space-x-2">
             <span className="w-3 h-3 rounded bg-amber-500/30 border border-amber-500" />
-            <span>Warning Buffer (1000m)</span>
+            <span>Warning Status (backend)</span>
           </div>
           <div className="flex items-center space-x-2">
             <span className="w-3 h-3 rounded bg-red-500/30 border border-red-500" />
-            <span>Critical Exclusion Zone (300m)</span>
+            <span>Critical Status (backend)</span>
           </div>
           <div className="flex items-center space-x-2">
             <span className="w-4 h-1 bg-indigo-500 rounded-sm" />
